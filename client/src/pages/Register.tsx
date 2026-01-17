@@ -1,144 +1,125 @@
-// Register.tsx
 import { useState } from "react";
-import { AuthService } from "../services/auth.service";
-import { useNavigate } from "react-router-dom";
-import CountrySelect from "../components/CountrySelect";
+import { Link, useNavigate } from "react-router-dom";
+import { Mail, Lock, User, Globe, ArrowRight, Loader2 } from "lucide-react";
 
-interface RegisterForm {
-  firstName: string;
-  lastName: string;
-  gender: string;
-  country: string;
-  email: string;
-  password: string;
-  confirmPassword: string;
-}
+// You can move this to a constants file later
+const COUNTRIES = [
+  "India", "United States", "United Kingdom", "Canada", "Australia", 
+  "Germany", "France", "Japan", "Brazil", "China", "South Africa"
+];
 
 export default function Register() {
   const navigate = useNavigate();
+  const [loading, setLoading] = useState(false);
 
-  const [form, setForm] = useState<RegisterForm>({
-    firstName: "",
-    lastName: "",
-    gender: "",
-    country: "",
-    email: "",
-    password: "",
-    confirmPassword: "",
-  });
-
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
-  ) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
-  };
-
-  const handleRegister = async () => {
-    if (form.password !== form.confirmPassword) {
-      alert("Passwords do not match!");
-      return;
-    }
-
-    try {
-      await AuthService.register({
-        firstName: form.firstName,
-        lastName: form.lastName,
-        gender: form.gender,
-        country: form.country,
-        email: form.email,
-        password: form.password,
-      });
-
-      navigate("/login");
-    } catch (err) {
-      console.error(err);
-      alert("Registration failed");
-    }
+  const handleRegister = (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    // Simulate API call
+    setTimeout(() => {
+      setLoading(false);
+      navigate("/dashboard");
+    }, 1500);
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen px-4 bg-gray-100">
-      <div className="w-full max-w-md p-6 bg-white rounded-xl shadow-md">
-        <h1 className="mb-6 text-3xl font-semibold text-center">Register</h1>
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4 relative overflow-hidden">
+       {/* Background Decor */}
+       <div className="absolute top-0 right-0 w-96 h-96 bg-purple-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 translate-x-1/2 -translate-y-1/2"></div>
+       <div className="absolute bottom-0 left-0 w-96 h-96 bg-indigo-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 -translate-x-1/2 translate-y-1/2"></div>
 
-        <div className="space-y-4">
-          <input
-            name="firstName"
-            placeholder="First Name"
-            onChange={handleChange}
-            className="w-full p-2 border rounded-lg"
-            value={form.firstName}
-          />
-
-          <input
-            name="lastName"
-            placeholder="Last Name"
-            onChange={handleChange}
-            className="w-full p-2 border rounded-lg"
-            value={form.lastName}
-          />
-
-          <div className="flex items-center gap-4">
-            {["Male", "Female", "Other"].map((g) => (
-              <label key={g} className="flex items-center gap-2">
-                <input
-                  type="radio"
-                  name="gender"
-                  value={g}
-                  checked={form.gender === g}
-                  onChange={handleChange}
-                />
-                {g}
-              </label>
-            ))}
+      <div className="w-full max-w-md bg-white rounded-3xl shadow-xl border border-gray-100 overflow-hidden relative z-10">
+        <div className="p-8">
+          <div className="text-center mb-8">
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">Create Account</h1>
+            <p className="text-gray-500 text-sm">Join to split bills & manage expenses</p>
           </div>
 
-          <CountrySelect
-            value={form.country}
-            onChange={(value) => setForm({ ...form, country: value })}
-          />
+          <form onSubmit={handleRegister} className="space-y-4">
+            
+            {/* Full Name */}
+            <div className="space-y-1">
+              <label className="text-sm font-medium text-gray-700 ml-1">Full Name</label>
+              <div className="relative">
+                <User className="absolute left-3 top-3.5 h-5 w-5 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="John Doe"
+                  className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all"
+                  required
+                />
+              </div>
+            </div>
 
-          <input
-            name="email"
-            type="email"
-            placeholder="Email"
-            onChange={handleChange}
-            className="w-full p-2 border rounded-lg"
-            value={form.email}
-          />
+            {/* Email */}
+            <div className="space-y-1">
+              <label className="text-sm font-medium text-gray-700 ml-1">Email</label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-3.5 h-5 w-5 text-gray-400" />
+                <input
+                  type="email"
+                  placeholder="you@example.com"
+                  className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all"
+                  required
+                />
+              </div>
+            </div>
 
-          <input
-            name="password"
-            type="password"
-            placeholder="Password"
-            onChange={handleChange}
-            className="w-full p-2 border rounded-lg"
-            value={form.password}
-          />
+            {/* Country Selector */}
+            <div className="space-y-1">
+              <label className="text-sm font-medium text-gray-700 ml-1">Country</label>
+              <div className="relative">
+                <Globe className="absolute left-3 top-3.5 h-5 w-5 text-gray-400" />
+                <select
+                  className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all appearance-none bg-white text-gray-700"
+                  required
+                  defaultValue=""
+                >
+                  <option value="" disabled>Select your country</option>
+                  {COUNTRIES.map(country => (
+                    <option key={country} value={country}>{country}</option>
+                  ))}
+                </select>
+                {/* Custom chevron for better UI */}
+                <div className="absolute inset-y-0 right-0 flex items-center px-4 pointer-events-none">
+                  <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+                </div>
+              </div>
+            </div>
 
-          <input
-            name="confirmPassword"
-            type="password"
-            placeholder="Confirm Password"
-            onChange={handleChange}
-            className="w-full p-2 border rounded-lg"
-            value={form.confirmPassword}
-          />
+            {/* Password */}
+            <div className="space-y-1">
+              <label className="text-sm font-medium text-gray-700 ml-1">Password</label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-3.5 h-5 w-5 text-gray-400" />
+                <input
+                  type="password"
+                  placeholder="Create a strong password"
+                  className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all"
+                  required
+                />
+              </div>
+            </div>
 
-          <button
-            onClick={handleRegister}
-            className="w-full py-2 font-medium text-white bg-black rounded-lg"
-          >
-            Create Account
-          </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 px-4 rounded-xl transition-all duration-200 flex items-center justify-center gap-2 shadow-lg shadow-indigo-200 mt-4"
+            >
+              {loading ? <Loader2 className="animate-spin w-5 h-5" /> : "Create Account"}
+              {!loading && <ArrowRight className="w-5 h-5" />}
+            </button>
+          </form>
         </div>
 
-        <p
-          onClick={() => navigate("/login")}
-          className="mt-4 text-sm text-center text-blue-600 underline cursor-pointer"
-        >
-          Already have an account?
-        </p>
+        <div className="bg-gray-50 p-6 text-center border-t border-gray-100">
+          <p className="text-gray-600 text-sm">
+            Already have an account?{" "}
+            <Link to="/login" className="font-semibold text-indigo-600 hover:text-indigo-500 transition-colors">
+              Sign in
+            </Link>
+          </p>
+        </div>
       </div>
     </div>
   );

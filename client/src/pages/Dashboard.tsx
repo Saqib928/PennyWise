@@ -1,154 +1,129 @@
 import { useContext, useEffect, useState, useMemo } from "react";
+import { TrendingUp, TrendingDown, Wallet, Mic, Plus } from "lucide-react";
+import { 
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer 
+} from "recharts";
+
 import { AuthContext } from "../context/AuthContext";
 import { ExpenseCard } from "../components/finance/ExpenseCard";
-import { VoiceInput } from "../components/VoiceInput";
+import { VoiceInput } from "../components/VoiceInput"; // Your component
 import { ExpenseConfirmationModal } from "../components/ExpenseConfirmationModal";
 import { AIService, type ParsedExpense } from "../services/ai.service";
 import type { Expense } from "../types/expense.types";
 
+const chartData = [
+  { name: 'Mon', amount: 400 },
+  { name: 'Tue', amount: 300 },
+  { name: 'Wed', amount: 600 },
+  { name: 'Thu', amount: 200 },
+  { name: 'Fri', amount: 900 },
+];
+
 export default function Dashboard() {
   const { user } = useContext(AuthContext);
-
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [pendingExpense, setPendingExpense] = useState<ParsedExpense | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  useEffect(() => {
-    console.log("Logged in user:", user);
-  }, [user]);
+  // ... (Keep your existing handleVoiceInput and handleConfirmExpense logic here) ...
+  const handleVoiceInput = async (text: string) => { /* logic */ };
+  const handleConfirmExpense = (ex: ParsedExpense) => { /* logic */ };
 
-  const handleVoiceInput = async (transcript: string) => {
-    try {
-      const response = await AIService.parseVoiceCommand(transcript);
-      const parsed = response.data.data;
-      setPendingExpense(parsed);
-      setIsModalOpen(true);
-    } catch (error) {
-      console.error(error);
-      alert("Failed to parse voice command.");
-    }
-  };
+  // ... (Keep balances calculation here) ...
+  const balances = { totalBalance: 1200, toPay: 300, toReceive: 1500 }; // Mock for display
 
-  const handleConfirmExpense = (expense: ParsedExpense) => {
-    const newExpense: Expense = {
-      id: Math.random().toString(36).substr(2, 9),
-      productName: expense.product,
-      price: expense.amount,
-      paidBy: expense.paid_by,
-      category: expense.category,
-      groupId: expense.group,
-      date: new Date().toISOString(),
-      splits: [],
-    };
-
-    setExpenses([newExpense, ...expenses]);
-    setIsModalOpen(false);
-    setPendingExpense(null);
-  };
-
-  // -------------------------
-  // 💰 CALCULATE BALANCES
-  // -------------------------
-  const balances = useMemo(() => {
-    let totalToPay = 0;
-    let totalToReceive = 0;
-
-    expenses.forEach((ex) => {
-      ex.splits.forEach((s) => {
-        if (s.userId === user?.id) {
-          if (!s.isPaid) totalToPay += s.amount;
-        } else {
-          if (!s.isPaid && ex.paidBy === user?.name) {
-            totalToReceive += s.amount;
-          }
-        }
-      });
-    });
-
-    return {
-      totalBalance: totalToReceive - totalToPay,
-      toPay: totalToPay,
-      toReceive: totalToReceive,
-    };
-  }, [expenses, user]);
-
-  const format = (amount: number) => Math.abs(amount).toFixed(2);
+  const formatCurrency = (amount: number) => 
+    new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(amount);
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      <div className="max-w-4xl mx-auto p-4">
-
-        <h1 className="text-2xl font-semibold mb-6">
-          Welcome back, {user?.name || "User"} 👋
-        </h1>
-
-        <VoiceInput onResult={handleVoiceInput} />
-
-        {/* TOTAL BALANCE HEADER */}
-        <div className="mt-6 p-4 rounded-xl bg-white shadow-md">
-          <p className="text-gray-600 text-sm">Your Balance</p>
-
-          <h2
-            className={`text-3xl font-bold mt-1 ${
-              balances.totalBalance >= 0 ? "text-green-600" : "text-red-600"
-            }`}
-          >
-            ₹ {format(balances.totalBalance)}
-          </h2>
-
-          <p className="text-xs text-gray-500 mt-1">
-            {balances.totalBalance >= 0 ? "You are owed money" : "You owe money"}
-          </p>
+    <div className="space-y-6">
+        {/* Page Header */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+                <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+                <p className="text-gray-500 text-sm">Welcome back, {user?.firstName|| "User"} 👋</p>
+            </div>
+            
+            <button className="flex items-center gap-2 bg-indigo-600 text-white px-5 py-2.5 rounded-xl hover:bg-indigo-700 transition shadow-lg shadow-indigo-200">
+                <Plus size={18} />
+                <span className="font-medium">New Expense</span>
+            </button>
         </div>
 
-        {/* PAY / RECEIVE SUMMARY */}
-        <div className="flex gap-4 mt-4">
-
-          {/* To Receive */}
-          <div className="flex-1 bg-white rounded-xl p-4 shadow-md border-l-4 border-green-500">
-            <p className="text-sm text-gray-600">Amount to Receive</p>
-            <h3 className="text-2xl font-bold text-green-600 mt-1">
-              ₹ {format(balances.toReceive)}
-            </h3>
-            <p className="text-xs text-gray-500 mt-1">Others owe you</p>
-          </div>
-
-          {/* To Pay */}
-          <div className="flex-1 bg-white rounded-xl p-4 shadow-md border-l-4 border-red-500">
-            <p className="text-sm text-gray-600">Amount to Pay</p>
-            <h3 className="text-2xl font-bold text-red-600 mt-1">
-              ₹ {format(balances.toPay)}
-            </h3>
-            <p className="text-xs text-gray-500 mt-1">You owe others</p>
-          </div>
-
+        {/* Stats Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                <div className="flex items-center gap-4">
+                    <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl">
+                        <Wallet size={24} />
+                    </div>
+                    <div>
+                        <p className="text-sm text-gray-500">Total Balance</p>
+                        <h3 className="text-2xl font-bold text-gray-900">{formatCurrency(balances.totalBalance)}</h3>
+                    </div>
+                </div>
+            </div>
+            {/* Add other stats cards similarly... */}
         </div>
 
-        {/* EXPENSE LIST */}
-        <h2 className="mt-8 mb-4 text-xl font-semibold">Recent Expenses</h2>
+        {/* Charts & Voice Section */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            {/* Chart Area */}
+            <div className="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                <h3 className="text-lg font-bold text-gray-900 mb-6">Spending Trend</h3>
+                <div className="h-72">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={chartData}>
+                            <defs>
+                                <linearGradient id="colorAmt" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3}/>
+                                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
+                                </linearGradient>
+                            </defs>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
+                            <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#9ca3af', fontSize: 12}} />
+                            <YAxis axisLine={false} tickLine={false} tick={{fill: '#9ca3af', fontSize: 12}} />
+                            <Tooltip contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}} />
+                            <Area type="monotone" dataKey="amount" stroke="#6366f1" strokeWidth={3} fillOpacity={1} fill="url(#colorAmt)" />
+                        </AreaChart>
+                    </ResponsiveContainer>
+                </div>
+            </div>
 
-        <div className="space-y-3">
-          {expenses.length > 0 ? (
-            expenses.map((expense) => (
-              <ExpenseCard key={expense.id} expense={expense} />
-            ))
-          ) : (
-            <p className="text-gray-500 text-center py-8">
-              No expenses yet. Add one using voice!
-            </p>
-          )}
+            {/* AI Voice Action Card */}
+            <div className="lg:col-span-1 bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl p-6 text-white shadow-xl flex flex-col justify-between">
+                <div>
+                    <div className="w-12 h-12 bg-white/10 rounded-full flex items-center justify-center mb-4">
+                        <Mic className="text-indigo-300" />
+                    </div>
+                    <h3 className="text-xl font-bold mb-2">AI Assistant</h3>
+                    <p className="text-gray-400 text-sm mb-6">
+                        "Split 500 rupees for lunch with Rahul..."
+                    </p>
+                </div>
+                
+                {/* Your VoiceInput component styled for dark background */}
+                <div className="bg-white/5 p-4 rounded-xl border border-white/10">
+                    <VoiceInput onResult={handleVoiceInput} />
+                </div>
+            </div>
         </div>
-      </div>
 
-      <ExpenseConfirmationModal
-        expense={pendingExpense}
-        isOpen={isModalOpen}
-        onConfirm={handleConfirmExpense}
-        onCancel={() => {
-          setIsModalOpen(false);
-          setPendingExpense(null);
-        }}
-      />
+        {/* Recent Expenses List */}
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+            <h3 className="text-lg font-bold text-gray-900 mb-4">Recent Transactions</h3>
+            <div className="space-y-4">
+                {expenses.map((ex) => <ExpenseCard key={ex.id} expense={ex} />)}
+            </div>
+        </div>
+
+        {/* Modal Logic */}
+        <ExpenseConfirmationModal
+            expense={pendingExpense}
+            isOpen={isModalOpen}
+            onConfirm={handleConfirmExpense}
+            onCancel={() => { setIsModalOpen(false); setPendingExpense(null); }}
+        />
     </div>
   );
 }

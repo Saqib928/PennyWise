@@ -4,7 +4,7 @@ import Register from "../pages/Register";
 import Dashboard from "../pages/Dashboard";
 import Groups from "../pages/Groups";
 import GroupDetails from "../pages/GroupDetails";
-import Users from "../pages/users";
+import Users from "../pages/Users";
 import MainLayout from "../components/layouts/MainLayout";
 import Notifications from "../pages/Notifications";
 import CreateGroup from "../pages/CreateGroup";

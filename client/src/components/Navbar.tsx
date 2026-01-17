@@ -1,48 +1,60 @@
-import UserProfileMenu from "./UserProfileMenu";
 import { useNavigate } from "react-router-dom";
+import { Bell, Search, Menu, ChevronDown } from "lucide-react";
+import UserProfileMenu from "./UserProfileMenu";
 
 export default function Navbar() {
   const navigate = useNavigate();
-
-  // Example unseen notifications count (you can replace with API)
   const unseenCount = 3;
 
   return (
-    <nav className="fixed top-0 left-64 right-0 h-16 bg-white px-6 shadow flex items-center justify-between z-40">
-      <h1 className="text-xl font-bold">PennyWise</h1>
-
-      <div className="flex items-center gap-6">
-
-        {/* Bell Icon */}
-        <div className="relative cursor-pointer" onClick={() => navigate("/notifications")}>
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className="w-7 h-7 text-black"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={1.6}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M14 17h5l-1.405-1.405A2.032 2.032 0 0117 14.158V11a5.002 
-              5.002 0 00-4-4.9V5a2 2 0 10-4 0v1.1A5.002 5.002 0 005 11v3.159c0 .538-.214 
-              1.055-.595 1.436L3 17h5m6 0v1a3 3 0 11-6 0v-1h6z"
+    // Sticky top, glass effect
+    <header className="sticky top-0 z-10 h-20 bg-white/80 backdrop-blur-md border-b border-gray-100 px-8 flex items-center justify-between transition-all duration-300">
+      
+      {/* Left: Mobile Menu & Search */}
+      <div className="flex items-center gap-4 flex-1">
+        <button className="lg:hidden p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
+          <Menu className="w-6 h-6" />
+        </button>
+        
+        {/* Modern Search Bar */}
+        <div className="hidden md:flex items-center bg-gray-50 hover:bg-gray-100 border border-transparent hover:border-gray-200 rounded-2xl px-4 py-2.5 w-64 lg:w-96 transition-all duration-300 focus-within:ring-4 focus-within:ring-indigo-50 focus-within:bg-white focus-within:border-indigo-100 group">
+            <Search className="w-4 h-4 text-gray-400 group-focus-within:text-indigo-500 transition-colors mr-3" />
+            <input 
+                type="text" 
+                placeholder="Search for expenses, friends..." 
+                className="bg-transparent border-none outline-none text-sm w-full placeholder-gray-400 text-gray-700"
             />
-          </svg>
-
-          {/* Unseen Notification Count */}
-          {unseenCount > 0 && (
-            <span className="absolute -top-1 -right-1 bg-red-600 text-white text-xs rounded-full px-1">
-              {unseenCount}
-            </span>
-          )}
         </div>
-
-        {/* Profile Dropdown */}
-        <UserProfileMenu />
       </div>
-    </nav>
+
+      {/* Right: Actions */}
+      <div className="flex items-center gap-3 md:gap-6">
+        
+        {/* Notification Bell with Pulse */}
+        <button 
+            onClick={() => navigate("/notifications")}
+            className="relative p-2.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all duration-300 group"
+        >
+          <Bell className="w-5 h-5" />
+          {unseenCount > 0 && (
+            <span className="absolute top-2 right-2.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white group-hover:animate-ping" />
+          )}
+          {unseenCount > 0 && (
+            <span className="absolute top-2 right-2.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white" />
+          )}
+        </button>
+
+        <div className="h-8 w-px bg-gray-200 hidden md:block"></div>
+
+        {/* User Menu Trigger */}
+        <div className="flex items-center gap-3 pl-2 cursor-pointer hover:opacity-80 transition-opacity">
+            <div className="text-right hidden md:block">
+                <p className="text-sm font-bold text-gray-900 leading-none">Mohd Saqib</p>
+                <p className="text-xs text-gray-400 mt-1">Free Plan</p>
+            </div>
+            <UserProfileMenu /> {/* Your existing avatar component */}
+        </div>
+      </div>
+    </header>
   );
 }
