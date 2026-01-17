@@ -1,0 +1,23 @@
+# Node & Environment
+node_modules/
+.env
+dist/
+build/
+coverage/
+*.log
+
+# OS Files
+.DS_Store
+Thumbs.db
+
+# TypeScript build
+*.tsbuildinfo
+
+# IDE
+.vscode/
+.idea/
+
+# Temporary files
+tmp/
+logs/
+uploads/
