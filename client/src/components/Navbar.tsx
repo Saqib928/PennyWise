@@ -1,10 +1,13 @@
 import { useNavigate } from "react-router-dom";
-import { Bell, Search, Menu, ChevronDown } from "lucide-react";
+import { Bell, Search, Menu } from "lucide-react";
 import UserProfileMenu from "./UserProfileMenu";
+import { useNotifications } from "../context/NotificationContext";
 
 export default function Navbar() {
   const navigate = useNavigate();
-  const unseenCount = 3;
+  
+  // Get the dynamic count from the Context
+  const { unreadCount } = useNotifications(); 
 
   return (
     // Sticky top, glass effect
@@ -30,17 +33,18 @@ export default function Navbar() {
       {/* Right: Actions */}
       <div className="flex items-center gap-3 md:gap-6">
         
-        {/* Notification Bell with Pulse */}
+        {/* Notification Bell Logic */}
         <button 
             onClick={() => navigate("/notifications")}
             className="relative p-2.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all duration-300 group"
         >
-          <Bell className="w-5 h-5" />
-          {unseenCount > 0 && (
-            <span className="absolute top-2 right-2.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white group-hover:animate-ping" />
-          )}
-          {unseenCount > 0 && (
-            <span className="absolute top-2 right-2.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white" />
+          <Bell className="w-6 h-6" />
+          
+          {/* Only show badge if count > 0 */}
+          {unreadCount > 0 && (
+            <span className="absolute top-1.5 right-1.5 flex items-center justify-center min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] font-bold px-1 rounded-full border-2 border-white shadow-sm transform translate-x-1 -translate-y-1">
+              {unreadCount > 9 ? "9+" : unreadCount}
+            </span>
           )}
         </button>
 
@@ -52,7 +56,7 @@ export default function Navbar() {
                 <p className="text-sm font-bold text-gray-900 leading-none">Mohd Saqib</p>
                 <p className="text-xs text-gray-400 mt-1">Free Plan</p>
             </div>
-            <UserProfileMenu /> {/* Your existing avatar component */}
+            <UserProfileMenu />
         </div>
       </div>
     </header>
