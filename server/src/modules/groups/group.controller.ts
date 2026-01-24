@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { Group } from "./group.model";
 import { Expense } from "../expenses/expense.model";
 import mongoose from "mongoose";
+import { verifyGroupAccess } from "../../utils/groupAccess";
 
 export async function createGroup(req: Request, res: Response) {
   const { name, memberIds } = req.body;
@@ -31,6 +32,27 @@ export async function getGroupById(req: Request, res: Response) {
 
 
 
+export async function settleGroup(req: Request, res: Response) {
+  const groupId = req.params.id;
+  const userId = req.user!.id;
+
+  const group = await verifyGroupAccess(groupId, userId);
+  if (!group) {
+    return res.status(403).json({ message: "Group access denied" });
+  }
+
+  const expenses = await Expense.find({ group: groupId });
+
+  for (const expense of expenses) {
+    const split = expense.splits.find(
+      (s: any) => s.user.toString() === userId
+    );
+    if (split) split.isPaid = true;
+    await expense.save();
+  }
+
+  res.json({ success: true, message: "All dues settled" });
+}
 
 
 export async function getGroupSettlement(req: Request, res: Response) {
@@ -84,3 +106,5 @@ export async function getGroupSettlement(req: Request, res: Response) {
     settlement,
   });
 }
+
+

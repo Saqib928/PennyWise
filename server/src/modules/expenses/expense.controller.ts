@@ -1,12 +1,27 @@
 import { Request, Response } from "express";
 import { Expense } from "./expense.model";
+import { verifyGroupAccess } from "../../utils/groupAccess";
 
 export async function createExpense(req: Request, res: Response) {
   const { productName, price, category, groupId, splits } = req.body;
   const userId = req.user!.id;
 
+  const group = await verifyGroupAccess(groupId, userId);
+  if (!group) {
+    return res.status(403).json({ message: "Group access denied" });
+  }
+
   if (!Array.isArray(splits) || splits.length === 0) {
     return res.status(400).json({ message: "Splits are required" });
+  }
+
+  const userIds = splits.map((s: any) => s.userId);
+  if (new Set(userIds).size !== userIds.length) {
+    return res.status(400).json({ message: "Duplicate users in splits" });
+  }
+
+  if (splits.some((s: any) => s.amount <= 0)) {
+    return res.status(400).json({ message: "Invalid split amount" });
   }
 
   const totalSplit = splits.reduce(
@@ -35,11 +50,19 @@ export async function createExpense(req: Request, res: Response) {
     splits: mappedSplits,
   });
 
-  res.status(201).json({ expense });
+  res.status(201).json({ success: true, data: expense });
 }
 
 export async function getExpenses(req: Request, res: Response) {
   const { groupId } = req.query;
+  const userId = req.user!.id;
+
+  if (groupId) {
+    const group = await verifyGroupAccess(groupId as string, userId);
+    if (!group) {
+      return res.status(403).json({ message: "Group access denied" });
+    }
+  }
 
   const query: any = {};
   if (groupId) query.group = groupId;
@@ -49,7 +72,7 @@ export async function getExpenses(req: Request, res: Response) {
     .populate("group", "name")
     .populate("splits.user", "name email");
 
-  res.json({ expenses });
+  res.json({ success: true, data: expenses });
 }
 
 export async function markAsPaid(req: Request, res: Response) {
@@ -72,5 +95,5 @@ export async function markAsPaid(req: Request, res: Response) {
   split.isPaid = true;
   await expense.save();
 
-  res.json({ message: "Payment marked as paid", expense });
+  res.json({ success: true, data: expense });
 }

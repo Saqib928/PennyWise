@@ -2,7 +2,6 @@ import passport from "passport";
 import { Strategy as GoogleStrategy, Profile } from "passport-google-oauth20";
 import { ENV } from "./env";
 import { User } from "../modules/users/user.model";
-import { signToken } from "../utils/jwt";
 
 passport.use(
   new GoogleStrategy(
@@ -11,22 +10,26 @@ passport.use(
       clientSecret: ENV.GOOGLE_CLIENT_SECRET,
       callbackURL: ENV.GOOGLE_CALLBACK_URL,
     },
-    async (accessToken, refreshToken, profile: Profile, done) => {
+    async (_accessToken, _refreshToken, profile: Profile, done) => {
       try {
-        const existingUser = await User.findOne({ email: profile.emails?.[0].value });
-        if (existingUser) return done(null, existingUser);
+        const email = profile.emails?.[0]?.value;
+        if (!email) return done(null, false);
 
-        const newUser = await User.create({
-          name: profile.displayName,
-          email: profile.emails?.[0].value,
-          provider: "google",
-          avatarUrl: profile.photos?.[0].value,
-          country: profile._json?.locale || "India",
-        });
-        done(null, newUser);
-      } catch (error) {
-        done(error, undefined);
+        let user = await User.findOne({ email });
 
+        if (!user) {
+          user = await User.create({
+            name: profile.displayName,
+            email,
+            provider: "google",
+            avatarUrl: profile.photos?.[0]?.value,
+            country: profile._json?.locale || "India",
+          });
+        }
+
+        done(null, { id: user.id, email: user.email || undefined });
+      } catch (err) {
+        done(err, false);
       }
     }
   )
@@ -39,9 +42,10 @@ passport.serializeUser((user: any, done) => {
 passport.deserializeUser(async (id: string, done) => {
   try {
     const user = await User.findById(id);
-    done(null, user);
-  } catch (error) {
-    done(error, null);
+    if (!user) return done(null, false);
+    done(null, { id: user.id, email: user.email || undefined });
+  } catch (err) {
+    done(err, false);
   }
 });
 

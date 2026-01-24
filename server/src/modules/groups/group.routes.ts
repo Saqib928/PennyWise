@@ -5,6 +5,7 @@ import {
   getGroups,
   getGroupById,
   getGroupSettlement,
+    settleGroup,
 } from "./group.controller";
 
 const router = Router();
@@ -12,6 +13,7 @@ const router = Router();
 router.post("/", requireAuth, createGroup);
 router.get("/", requireAuth, getGroups);
 router.get("/:id", requireAuth, getGroupById);
+router.post("/:id/settle", requireAuth, settleGroup);
 
 // NEW
 router.get("/:id/settlement", requireAuth, getGroupSettlement);
