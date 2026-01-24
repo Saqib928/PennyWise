@@ -25,7 +25,8 @@ passport.use(
         });
         done(null, newUser);
       } catch (error) {
-        done(error, null);
+        done(error, undefined);
+
       }
     }
   )

@@ -1,11 +1,19 @@
 import { Router } from "express";
-import { createGroup, getGroups, getGroupById } from "./group.controller";
-import { requireAuth } from "../../middleware/auth";
+import { requireAuth } from "../../middlewares/auth";
+import {
+  createGroup,
+  getGroups,
+  getGroupById,
+  getGroupSettlement,
+} from "./group.controller";
 
 const router = Router();
 
 router.post("/", requireAuth, createGroup);
 router.get("/", requireAuth, getGroups);
 router.get("/:id", requireAuth, getGroupById);
+
+// NEW
+router.get("/:id/settlement", requireAuth, getGroupSettlement);
 
 export default router;

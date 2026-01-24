@@ -10,9 +10,8 @@ import groupRoutes from "./modules/groups/group.routes";
 import expenseRoutes from "./modules/expenses/expense.routes";
 import aiRoutes from "./modules/ai/ai.routes";
 
-import { errorHandler } from "./middleware/errorHandler";
+import { errorHandler } from "./middlewares/errorHandler";
 
-dotenv.config();
 export const app = express();
 
 app.use(

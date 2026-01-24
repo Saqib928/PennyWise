@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { parseExpense } from "./ai.controller";
-import { requireAuth } from "../../middleware/auth";
+import { requireAuth } from "../../middlewares/auth";
 
 const router = Router();
 
