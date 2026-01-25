@@ -5,37 +5,52 @@ import { Group } from "../groups/group.model";
 import { notify } from "../../utils/notify";
 
 export async function createExpense(req: Request, res: Response) {
-  const userId = req.user!.id;
-  const { productName, price, category, groupId, splits } = req.body;
+  const paidBy = req.user!.id;
+  const { productName, price, category, groupId, participantIds } = req.body;
 
   const group = await Group.findById(groupId);
   if (!group) {
     return res.status(404).json({ message: "Group not found" });
   }
 
-  const mappedSplits = splits.map((s: any) => ({
-    user: s.userId,
-    amount: s.amount,
-    isPaid: false,
+  const groupMembers = group.members.map((m: any) => m.toString());
+
+  const participants = participantIds?.length
+    ? participantIds
+    : groupMembers;
+
+  const invalid = participants.find(
+    (id: string) => !groupMembers.includes(id)
+  );
+  if (invalid) {
+    return res.status(400).json({ message: "Invalid participant" });
+  }
+
+  const amountPerUser = price / participants.length;
+
+  const splits = participants.map((userId: string) => ({
+    user: userId,
+    amount: amountPerUser,
+    isPaid: userId === paidBy,
   }));
 
   const expense = await Expense.create({
     productName,
     price,
     category,
-    paidBy: userId,
+    paidBy,
     group: groupId,
-    splits: mappedSplits,
+    splits,
   });
 
-  for (const s of mappedSplits) {
-    if (s.user.toString() !== userId) {
-      await notify(s.user.toString(), "EXPENSE_ADDED", {
+  for (const s of splits) {
+    if (s.user !== paidBy) {
+      await notify(s.user, "EXPENSE_ADDED", {
         expenseId: expense._id,
         groupId,
         productName,
         amount: s.amount,
-        paidBy: userId,
+        paidBy,
       });
     }
   }

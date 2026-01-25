@@ -23,6 +23,14 @@ export async function updateProfile(req: Request, res: Response) {
   res.json({ success: true, data: user });
 }
 
+export async function getAllUsers(req: Request, res: Response) {
+  const users = await User.find()
+    .select("_id name email username country")
+    .limit(20);
+
+  res.json({ success: true, data: users });
+}
+
 export async function searchUsers(req: Request, res: Response) {
   const q = req.query.q as string;
 
