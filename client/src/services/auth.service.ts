@@ -13,14 +13,14 @@ export interface RegisterRequest {
 }
 
 export interface AuthResponse {
-  success: boolean;
-  data?: {
-    id: string;
+
+  user?: {
+    _id: string;
     name: string;
     email: string;
     country: string;
   };
-  message?: string;
+
 }
 
 export class AuthService {

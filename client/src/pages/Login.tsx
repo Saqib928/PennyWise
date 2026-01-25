@@ -24,14 +24,15 @@ export default function Login() {
 
     try {
       const response = await AuthService.login({ email, password });
-      if (response.data.success && response.data.data) {
-        const user = response.data.data;
-        setUser({
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          country: user.country,
-        });
+      if (response.status === 200) {
+        const user = response.data.user;
+        console.log("Logged in user:", user);
+        // setUser({
+        //   id: user?._id,
+        //   name: user?.name,
+        //   email: user?.email,
+        //   country: user?.country,
+        // });
         localStorage.setItem("user", JSON.stringify(user));
         navigate("/dashboard");
       }
