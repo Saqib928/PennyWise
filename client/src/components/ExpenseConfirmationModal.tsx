@@ -1,4 +1,4 @@
-import type { ParsedExpense } from "../services/ai.service";
+import type { ParsedExpense } from "../types/expense.types";
 
 interface ExpenseConfirmationModalProps {
   expense: ParsedExpense | null;
@@ -23,7 +23,7 @@ export function ExpenseConfirmationModal({
         <div className="space-y-2 text-gray-700">
           <div>
             <p className="text-sm font-medium">Product</p>
-            <p className="text-lg">{expense.product}</p>
+            <p className="text-lg">{expense.productName}</p>
           </div>
 
           <div>
@@ -31,25 +31,10 @@ export function ExpenseConfirmationModal({
             <p className="text-lg font-bold">₹{expense.amount}</p>
           </div>
 
-          <div>
-            <p className="text-sm font-medium">Paid By</p>
-            <p>{expense.paid_by}</p>
-          </div>
-
-          <div>
-            <p className="text-sm font-medium">Group</p>
-            <p>{expense.group}</p>
-          </div>
-
-          <div>
-            <p className="text-sm font-medium">Category</p>
-            <p>{expense.category}</p>
-          </div>
-
-          {expense.split_type && (
+          {expense.category && (
             <div>
-              <p className="text-sm font-medium">Split Type</p>
-              <p className="capitalize">{expense.split_type}</p>
+              <p className="text-sm font-medium">Category</p>
+              <p>{expense.category}</p>
             </div>
           )}
         </div>

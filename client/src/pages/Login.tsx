@@ -1,30 +1,45 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { useGoogleLogin } from "@react-oauth/google";
 import { Mail, Lock, ArrowRight, Loader2 } from "lucide-react";
+import { useContext } from "react";
+import { AuthContext } from "../context/AuthContext";
+import { AuthService } from "../services/auth.service";
 
 export default function Login() {
   const navigate = useNavigate();
+  const { setUser } = useContext(AuthContext);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
 
-  // --- Handlers ---
-  const handleGoogleLogin = useGoogleLogin({
-    onSuccess: (tokenResponse) => {
-      console.log(tokenResponse);
-      // TODO: Send token to your backend to verify and create session
-      navigate("/dashboard");
-    },
-    onError: () => console.log("Login Failed"),
-  });
+  const handleGoogleLogin = () => {
+    AuthService.googleLogin();
+  };
 
-  const handleEmailLogin = (e: React.FormEvent) => {
+  const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    // Simulate API call
-    setTimeout(() => {
+    setError("");
+
+    try {
+      const response = await AuthService.login({ email, password });
+      if (response.data.success && response.data.data) {
+        const user = response.data.data;
+        setUser({
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          country: user.country,
+        });
+        localStorage.setItem("user", JSON.stringify(user));
+        navigate("/dashboard");
+      }
+    } catch (err: any) {
+      setError(err.response?.data?.message || "Login failed. Please try again.");
+    } finally {
       setLoading(false);
-      navigate("/dashboard");
-    }, 1500);
+    }
   };
 
   return (
@@ -42,9 +57,16 @@ export default function Login() {
             <p className="text-gray-500 text-sm">Sign in to track your shared expenses</p>
           </div>
 
+          {error && (
+            <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
+              {error}
+            </div>
+          )}
+
           {/* Google Button */}
           <button
-            onClick={() => handleGoogleLogin()}
+            onClick={handleGoogleLogin}
+            type="button"
             className="w-full flex items-center justify-center gap-3 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 font-medium py-3 px-4 rounded-xl transition-all duration-200 mb-6 group"
           >
             <img 
@@ -73,6 +95,8 @@ export default function Login() {
                 <input
                   type="email"
                   placeholder="you@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                   className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all"
                   required
                 />
@@ -91,6 +115,8 @@ export default function Login() {
                 <input
                   type="password"
                   placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
                   className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all"
                   required
                 />
@@ -100,7 +126,7 @@ export default function Login() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 px-4 rounded-xl transition-all duration-200 flex items-center justify-center gap-2 shadow-lg shadow-indigo-200 mt-2"
+              className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-400 text-white font-semibold py-3 px-4 rounded-xl transition-all duration-200 flex items-center justify-center gap-2 shadow-lg shadow-indigo-200 mt-2"
             >
               {loading ? <Loader2 className="animate-spin w-5 h-5" /> : "Sign In"}
               {!loading && <ArrowRight className="w-5 h-5" />}

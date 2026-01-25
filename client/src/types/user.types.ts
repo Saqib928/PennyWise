@@ -1,8 +1,14 @@
 export interface User {
-  id: string;
-  firstName: string;
-  lastName: string;
-  country: string;
-  gender: string;
+  _id: string;
+  id?: string;
+  name: string;
   email: string;
+  country: string;
+}
+
+export interface AppUser {
+  id: string;
+  name: string;
+  email: string;
+  country: string;
 }

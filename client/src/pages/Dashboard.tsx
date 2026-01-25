@@ -1,16 +1,19 @@
-import { useContext, useEffect, useState, useMemo } from "react";
+import { useContext, useState, useEffect } from "react";
 import { TrendingUp, TrendingDown, Wallet, Mic, Plus } from "lucide-react";
-import { 
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer 
+import {
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
 
 import { AuthContext } from "../context/AuthContext";
 import { ExpenseCard } from "../components/finance/ExpenseCard";
-import { VoiceInput } from "../components/VoiceInput"; // Your component
+import { VoiceInput } from "../components/VoiceInput";
 import { ExpenseConfirmationModal } from "../components/ExpenseConfirmationModal";
-import { AIService, type ParsedExpense } from "../services/ai.service";
-import type { Expense } from "../types/expense.types";
+import { DashboardService } from "../services/dashboard.service";
+import { GroupService } from "../services/groups.service";
 
+import type { Expense, ParsedExpense } from "../types/expense.types";
+
+// Mock Chart Data
 const chartData = [
   { name: 'Mon', amount: 400 },
   { name: 'Tue', amount: 300 },
@@ -20,110 +23,219 @@ const chartData = [
 ];
 
 export default function Dashboard() {
-  const { user } = useContext(AuthContext);
+  const { user, loading } = useContext(AuthContext);
+  
+  // State using shared Expense type
   const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [balances, setBalances] = useState({ totalSpent: 0, youOwe: 0, youGet: 0, groups: 0 });
+  const [dashLoading, setDashLoading] = useState(true);
+  const [error, setError] = useState("");
+  
+  // State using shared ParsedExpense type
   const [pendingExpense, setPendingExpense] = useState<ParsedExpense | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // ... (Keep your existing handleVoiceInput and handleConfirmExpense logic here) ...
-  const handleVoiceInput = async (text: string) => { /* logic */ };
-  const handleConfirmExpense = (ex: ParsedExpense) => { /* logic */ };
-
-  // ... (Keep balances calculation here) ...
-  const balances = { totalBalance: 1200, toPay: 300, toReceive: 1500 }; // Mock for display
-
-  const formatCurrency = (amount: number) => 
+  const formatCurrency = (amount: number) =>
     new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(amount);
 
+  // Fetch dashboard data
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      if (!user) return;
+      
+      try {
+        setDashLoading(true);
+        const summaryResponse = await DashboardService.getSummary();
+        if (summaryResponse.data.success && summaryResponse.data.data) {
+          setBalances(summaryResponse.data.data);
+        }
+
+        // Fetch groups and their expenses
+        const groupsResponse = await GroupService.getAll();
+        if (groupsResponse.data.success && Array.isArray(groupsResponse.data.data)) {
+          const allExpenses: Expense[] = [];
+          for (const group of groupsResponse.data.data) {
+            try {
+              const expensesResponse = await GroupService.getOne(group._id || group.id || "");
+              if (expensesResponse.data.success && Array.isArray(expensesResponse.data.data)) {
+                allExpenses.push(...expensesResponse.data.data);
+              }
+            } catch (err) {
+              console.error(`Error fetching expenses for group ${group._id}:`, err);
+            }
+          }
+          setExpenses(allExpenses.slice(0, 5)); // Show last 5 expenses
+        }
+      } catch (err: any) {
+        setError(err.response?.data?.message || "Failed to load dashboard");
+        console.error("Dashboard error:", err);
+      } finally {
+        setDashLoading(false);
+      }
+    };
+
+    fetchDashboardData();
+  }, [user]);
+
+  // --- Event Handlers ---
+  const handleVoiceInput = async (text: string) => {
+    console.log("Voice input received:", text);
+    
+    // Simulating AI parsing
+    setTimeout(() => {
+        const mockParsedResult: ParsedExpense = {
+            productName: "Simulated " + text.split(' ').slice(0, 2).join(' '),
+            amount: Math.floor(Math.random() * 1000) + 100,
+        };
+        setPendingExpense(mockParsedResult);
+        setIsModalOpen(true);
+    }, 1000);
+  };
+
+  const handleConfirmExpense = (parsedEx: ParsedExpense) => {
+    const newExpense: Expense = {
+      _id: Date.now().toString(),
+      productName: parsedEx.productName,
+      price: parsedEx.amount,
+      date: new Date().toISOString().split('T')[0],
+      category: parsedEx.category || 'General',
+      splits: []
+    };
+
+    setExpenses((prev) => [newExpense, ...prev]);
+    setIsModalOpen(false);
+    setPendingExpense(null);
+  };
+
+  if (loading || dashLoading) {
+      return <div className="p-6">Loading dashboard...</div>;
+  }
+
+  if (!user) {
+      return <div className="p-6">Please log in to view the dashboard.</div>;
+  }
+
   return (
-    <div className="space-y-6">
-        {/* Page Header */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div>
-                <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-                <p className="text-gray-500 text-sm">Welcome back, {user?.firstName|| "User"} 👋</p>
-            </div>
-            
-            <button className="flex items-center gap-2 bg-indigo-600 text-white px-5 py-2.5 rounded-xl hover:bg-indigo-700 transition shadow-lg shadow-indigo-200">
-                <Plus size={18} />
-                <span className="font-medium">New Expense</span>
-            </button>
+    <div className="space-y-6 p-6 bg-gray-50 min-h-screen">
+      {/* Page Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+          <p className="text-gray-500 text-sm">Welcome back, {user.name} 👋</p>
         </div>
 
-        {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                <div className="flex items-center gap-4">
-                    <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl">
-                        <Wallet size={24} />
-                    </div>
-                    <div>
-                        <p className="text-sm text-gray-500">Total Balance</p>
-                        <h3 className="text-2xl font-bold text-gray-900">{formatCurrency(balances.totalBalance)}</h3>
-                    </div>
-                </div>
-            </div>
-            {/* Add other stats cards similarly... */}
+        <button className="flex items-center gap-2 bg-indigo-600 text-white px-5 py-2.5 rounded-xl hover:bg-indigo-700 transition shadow-lg shadow-indigo-200">
+          <Plus size={18} />
+          <span className="font-medium">New Expense</span>
+        </button>
+      </div>
+
+      {error && (
+        <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-red-700">
+          {error}
         </div>
+      )}
 
-        {/* Charts & Voice Section */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Chart Area */}
-            <div className="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                <h3 className="text-lg font-bold text-gray-900 mb-6">Spending Trend</h3>
-                <div className="h-72">
-                    <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={chartData}>
-                            <defs>
-                                <linearGradient id="colorAmt" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3}/>
-                                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
-                                </linearGradient>
-                            </defs>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
-                            <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#9ca3af', fontSize: 12}} />
-                            <YAxis axisLine={false} tickLine={false} tick={{fill: '#9ca3af', fontSize: 12}} />
-                            <Tooltip contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}} />
-                            <Area type="monotone" dataKey="amount" stroke="#6366f1" strokeWidth={3} fillOpacity={1} fill="url(#colorAmt)" />
-                        </AreaChart>
-                    </ResponsiveContainer>
-                </div>
-            </div>
-
-            {/* AI Voice Action Card */}
-            <div className="lg:col-span-1 bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl p-6 text-white shadow-xl flex flex-col justify-between">
-                <div>
-                    <div className="w-12 h-12 bg-white/10 rounded-full flex items-center justify-center mb-4">
-                        <Mic className="text-indigo-300" />
-                    </div>
-                    <h3 className="text-xl font-bold mb-2">AI Assistant</h3>
-                    <p className="text-gray-400 text-sm mb-6">
-                        "Split 500 rupees for lunch with Rahul..."
-                    </p>
-                </div>
-                
-                {/* Your VoiceInput component styled for dark background */}
-                <div className="bg-white/5 p-4 rounded-xl border border-white/10">
-                    <VoiceInput onResult={handleVoiceInput} />
-                </div>
-            </div>
-        </div>
-
-        {/* Recent Expenses List */}
+      {/* Stats Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* Total Spent */}
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-            <h3 className="text-lg font-bold text-gray-900 mb-4">Recent Transactions</h3>
-            <div className="space-y-4">
-                {expenses.map((ex) => <ExpenseCard key={ex.id} expense={ex} />)}
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl">
+              <Wallet size={24} />
             </div>
+            <div>
+              <p className="text-sm text-gray-500">Total Spent</p>
+              <h3 className="text-2xl font-bold text-gray-900">{formatCurrency(balances.totalSpent)}</h3>
+            </div>
+          </div>
+        </div>
+        {/* You Get */}
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-green-50 text-green-600 rounded-xl">
+              <TrendingUp size={24} />
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">You Get</p>
+              <h3 className="text-2xl font-bold text-green-700">{formatCurrency(balances.youGet)}</h3>
+            </div>
+          </div>
+        </div>
+        {/* You Owe */}
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-red-50 text-red-600 rounded-xl">
+              <TrendingDown size={24} />
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">You Owe</p>
+              <h3 className="text-2xl font-bold text-red-700">{formatCurrency(balances.youOwe)}</h3>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Charts & Voice Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Chart */}
+        <div className="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+          <h3 className="text-lg font-bold text-gray-900 mb-6">Spending Trend</h3>
+          <div className="h-72">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={chartData}>
+                <defs>
+                  <linearGradient id="colorAmt" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#9ca3af', fontSize: 12 }} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fill: '#9ca3af', fontSize: 12 }} />
+                <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                <Area type="monotone" dataKey="amount" stroke="#6366f1" strokeWidth={3} fillOpacity={1} fill="url(#colorAmt)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
         </div>
 
-        {/* Modal Logic */}
-        <ExpenseConfirmationModal
-            expense={pendingExpense}
-            isOpen={isModalOpen}
-            onConfirm={handleConfirmExpense}
-            onCancel={() => { setIsModalOpen(false); setPendingExpense(null); }}
-        />
+        {/* AI Voice Assistant */}
+        <div className="lg:col-span-1 bg-linear-to-br from-gray-900 to-gray-800 rounded-2xl p-6 text-white shadow-xl flex flex-col justify-between">
+          <div>
+            <div className="w-12 h-12 bg-white/10 rounded-full flex items-center justify-center mb-4">
+              <Mic className="text-indigo-300" />
+            </div>
+            <h3 className="text-xl font-bold mb-2">AI Assistant</h3>
+            <p className="text-gray-400 text-sm mb-6">
+              "Split 500 rupees for lunch with Rahul..."
+            </p>
+          </div>
+          <div className="bg-white/5 p-4 rounded-xl border border-white/10">
+            <VoiceInput onResult={handleVoiceInput} />
+          </div>
+        </div>
+      </div>
+
+      {/* Recent Expenses List */}
+      <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+        <h3 className="text-lg font-bold text-gray-900 mb-4">Recent Transactions</h3>
+        <div className="space-y-4">
+          {expenses.length > 0 ? (
+              expenses.map((ex) => <ExpenseCard key={ex._id || ex.id} expense={ex} />)
+          ) : (
+              <p className="text-gray-500">No recent transactions.</p>
+          )}
+        </div>
+      </div>
+
+      {/* Confirmation Modal */}
+      <ExpenseConfirmationModal
+        expense={pendingExpense}
+        isOpen={isModalOpen}
+        onConfirm={handleConfirmExpense}
+        onCancel={() => { setIsModalOpen(false); setPendingExpense(null); }}
+      />
     </div>
   );
 }

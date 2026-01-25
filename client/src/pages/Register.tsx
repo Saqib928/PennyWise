@@ -1,6 +1,9 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Mail, Lock, User, Globe, ArrowRight, Loader2 } from "lucide-react";
+import { useContext } from "react";
+import { AuthContext } from "../context/AuthContext";
+import { AuthService } from "../services/auth.service";
 
 // You can move this to a constants file later
 const COUNTRIES = [
@@ -10,16 +13,43 @@ const COUNTRIES = [
 
 export default function Register() {
   const navigate = useNavigate();
+  const { setUser } = useContext(AuthContext);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [country, setCountry] = useState("");
 
-  const handleRegister = (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    // Simulate API call
-    setTimeout(() => {
+    setError("");
+
+    try {
+      const response = await AuthService.register({
+        name,
+        email,
+        password,
+        country,
+      });
+
+      if (response.data.success && response.data.data) {
+        const user = response.data.data;
+        setUser({
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          country: user.country,
+        });
+        localStorage.setItem("user", JSON.stringify(user));
+        navigate("/dashboard");
+      }
+    } catch (err: any) {
+      setError(err.response?.data?.message || "Registration failed. Please try again.");
+    } finally {
       setLoading(false);
-      navigate("/dashboard");
-    }, 1500);
+    }
   };
 
   return (
@@ -35,6 +65,12 @@ export default function Register() {
             <p className="text-gray-500 text-sm">Join to split bills & manage expenses</p>
           </div>
 
+          {error && (
+            <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
+              {error}
+            </div>
+          )}
+
           <form onSubmit={handleRegister} className="space-y-4">
             
             {/* Full Name */}
@@ -45,6 +81,8 @@ export default function Register() {
                 <input
                   type="text"
                   placeholder="John Doe"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
                   className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all"
                   required
                 />
@@ -59,6 +97,8 @@ export default function Register() {
                 <input
                   type="email"
                   placeholder="you@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                   className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all"
                   required
                 />
@@ -71,9 +111,10 @@ export default function Register() {
               <div className="relative">
                 <Globe className="absolute left-3 top-3.5 h-5 w-5 text-gray-400" />
                 <select
+                  value={country}
+                  onChange={(e) => setCountry(e.target.value)}
                   className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all appearance-none bg-white text-gray-700"
                   required
-                  defaultValue=""
                 >
                   <option value="" disabled>Select your country</option>
                   {COUNTRIES.map(country => (
@@ -95,6 +136,8 @@ export default function Register() {
                 <input
                   type="password"
                   placeholder="Create a strong password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
                   className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all"
                   required
                 />
@@ -104,7 +147,7 @@ export default function Register() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 px-4 rounded-xl transition-all duration-200 flex items-center justify-center gap-2 shadow-lg shadow-indigo-200 mt-4"
+              className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-400 text-white font-semibold py-3 px-4 rounded-xl transition-all duration-200 flex items-center justify-center gap-2 shadow-lg shadow-indigo-200 mt-4"
             >
               {loading ? <Loader2 className="animate-spin w-5 h-5" /> : "Create Account"}
               {!loading && <ArrowRight className="w-5 h-5" />}

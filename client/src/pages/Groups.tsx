@@ -1,41 +1,87 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Search, Plus, Users, ArrowRight, Wallet } from "lucide-react";
-
-interface Group {
-  id: string;
-  name: string;
-  members: number;
-  totalExpense: number;
-  lastActive: string;
-  category: string; // e.g., 'Trip', 'Home', 'Office'
-}
-
-interface User {
-  id: string;
-  name: string;
-}
+import { GroupService } from "../services/groups.service";
+import { UsersService } from "../services/users.service";
+import type { Group } from "../types/group.types";
+import type { User } from "../types/user.types";
 
 export default function Groups() {
   const navigate = useNavigate();
+  
+  // -- State --
   const [searchTerm, setSearchTerm] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
+  
+  // Group Creation State
   const [groupName, setGroupName] = useState("");
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
+  const [searchUsers, setSearchUsers] = useState("");
+  const [filteredSearchUsers, setFilteredSearchUsers] = useState<User[]>([]);
 
-  // Mock Data
-  const [groups, setGroups] = useState<Group[]>([
-    { id: "1", name: "Goa Trip 🌴", members: 4, totalExpense: 12500, lastActive: "2m ago", category: "Trip" },
-    { id: "2", name: "Flat 302 Expenses 🏠", members: 3, totalExpense: 8000, lastActive: "1d ago", category: "Home" },
-    { id: "3", name: "Office Lunch 🍔", members: 5, totalExpense: 4500, lastActive: "5h ago", category: "Food" },
-  ]);
+  // Data State
+  const [groups, setGroups] = useState<Group[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  const [users] = useState<User[]>([
-    { id: "1", name: "Mohd Saqib" },
-    { id: "2", name: "Aman Gupta" },
-    { id: "3", name: "Ali Khan" },
-    { id: "4", name: "Rahul Sharma" }
-  ]);
+  // -- Effects --
+
+  // 1. Fetch groups on mount
+  useEffect(() => {
+    const fetchGroups = async () => {
+      try {
+        setLoading(true);
+        const response = await GroupService.getAll();
+        if (response.data.success && response.data.data) {
+          const groupList = Array.isArray(response.data.data) ? response.data.data : [response.data.data];
+          setGroups(groupList.map((g: any) => ({
+            _id: g._id,
+            id: g.id,
+            name: g.name,
+            members: g.members || [],
+            createdBy: g.createdBy,
+            createdAt: g.createdAt,
+            lastActive: "Today", 
+            category: "General",
+            totalExpense: 0
+          })));
+        }
+      } catch (err: any) {
+        setError(err.response?.data?.message || "Failed to load groups");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchGroups();
+  }, []);
+
+  // 2. Search users for "Add Members" modal
+  useEffect(() => {
+    const searchUser = async () => {
+      if (searchUsers.length < 2) {
+        setFilteredSearchUsers([]);
+        return;
+      }
+
+      try {
+        const response = await UsersService.searchUsers(searchUsers);
+        if (response.data.success && response.data.data) {
+          setFilteredSearchUsers(response.data.data);
+        }
+      } catch (err) {
+        console.error("Error searching users:", err);
+      }
+    };
+
+    const timeoutId = setTimeout(() => {
+        searchUser();
+    }, 300);
+
+    return () => clearTimeout(timeoutId);
+  }, [searchUsers]);
+
+  // -- Handlers --
 
   const toggleUserSelection = (userId: string) => {
     setSelectedUsers((prev) =>
@@ -43,27 +89,46 @@ export default function Groups() {
     );
   };
 
-  const handleCreateGroup = () => {
+  const handleCreateGroup = async () => {
     if (!groupName.trim()) return;
-    const newGroup: Group = {
-      id: Math.random().toString(36).substr(2, 9),
-      name: groupName,
-      members: selectedUsers.length + 1,
-      totalExpense: 0,
-      lastActive: "Just now",
-      category: "General"
-    };
-    setGroups([newGroup, ...groups]);
-    setIsModalOpen(false);
-    setGroupName("");
-    setSelectedUsers([]);
-    navigate(`/groups/${newGroup.id}`);
+
+    try {
+      const response = await GroupService.create({
+        name: groupName,
+        memberIds: selectedUsers,
+      });
+
+      if (response.data.success && response.data.data) {
+        const newGroup = response.data.data;
+        const groupToAdd: Group = {
+          _id: newGroup._id,
+          id: newGroup._id,
+          name: newGroup.name,
+          members: newGroup.members || [],
+          createdBy: "Me", 
+          createdAt: new Date().toISOString(),
+        };
+        
+        setGroups([groupToAdd, ...groups]);
+        
+        setIsModalOpen(false);
+        setGroupName("");
+        setSelectedUsers([]);
+        setSearchUsers("");
+        
+        navigate(`/groups/${newGroup._id}`);
+      }
+    } catch (err: any) {
+      setError(err.response?.data?.message || "Failed to create group");
+    }
   };
 
-  const filteredGroups = groups.filter(g => g.name.toLowerCase().includes(searchTerm.toLowerCase()));
+  const filteredGroups = groups.filter(g => 
+    g.name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   return (
-    <div className="space-y-8 animate-fade-in-up">
+    <div className="space-y-8 animate-fade-in-up p-6">
       {/* --- HEADER SECTION --- */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -72,7 +137,6 @@ export default function Groups() {
         </div>
         
         <div className="flex gap-3">
-          {/* Search Bar */}
           <div className="relative group">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 group-focus-within:text-indigo-500 transition-colors" />
             <input 
@@ -94,125 +158,179 @@ export default function Groups() {
         </div>
       </div>
 
-      {/* --- GROUPS GRID --- */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredGroups.map((group) => (
-          <Link
-            key={group.id}
-            to={`/groups/${group.id}`}
-            className="group relative bg-white rounded-2xl p-6 border border-gray-100 hover:border-indigo-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300"
-          >
-            {/* Card Header */}
-            <div className="flex justify-between items-start mb-4">
-              <div className="w-12 h-12 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-xl font-bold">
-                 {group.name.charAt(0)}
-              </div>
-              <span className="text-xs font-medium text-gray-400 bg-gray-50 px-2 py-1 rounded-full border border-gray-100">
-                {group.lastActive}
-              </span>
-            </div>
+      {/* --- ERROR MESSAGE --- */}
+      {error && (
+        <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 flex items-center justify-between">
+          <span>{error}</span>
+          <button onClick={() => setError("")} className="text-red-500 hover:text-red-700">✕</button>
+        </div>
+      )}
 
-            {/* Card Content */}
-            <h2 className="text-lg font-bold text-gray-900 mb-1 group-hover:text-indigo-600 transition-colors line-clamp-1">
-              {group.name}
-            </h2>
-            <div className="flex items-center gap-2 text-gray-500 text-sm mb-6">
-               <span className="px-2 py-0.5 bg-gray-100 rounded text-xs font-medium">{group.category}</span>
-               <span>•</span>
-               <span>{group.members} members</span>
-            </div>
-
-            {/* Bottom Row: Stats & Avatar Pile */}
-            <div className="flex items-end justify-between border-t border-gray-50 pt-4">
-              <div>
-                <p className="text-xs text-gray-400 mb-1">Total Spent</p>
-                <p className="text-lg font-bold text-gray-900">₹{group.totalExpense.toLocaleString()}</p>
-              </div>
-              
-              <div className="flex -space-x-2">
-                {[...Array(3)].map((_, i) => (
-                  <div key={i} className="w-8 h-8 rounded-full border-2 border-white bg-gray-200 flex items-center justify-center text-xs font-bold text-gray-500">
-                    {/* Placeholder avatars */}
-                    {["A", "S", "R"][i]}
+      {/* --- CONTENT --- */}
+      {loading ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-pulse">
+            {[1,2,3].map(i => (
+                <div key={i} className="h-48 bg-gray-100 rounded-2xl"></div>
+            ))}
+        </div>
+      ) : (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredGroups.map((group) => (
+              <Link
+                key={group._id || group.id}
+                to={`/groups/${group._id || group.id}`}
+                className="group bg-white rounded-2xl border border-gray-100 overflow-hidden hover:shadow-lg hover:-translate-y-1 transition-all duration-300 block"
+              >
+                <div className="p-6">
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-lg font-bold">
+                            {group.name.charAt(0).toUpperCase()}
+                        </div>
+                        <h3 className="text-lg font-bold text-gray-900 group-hover:text-indigo-600 transition truncate max-w-[150px]">
+                            {group.name}
+                        </h3>
+                    </div>
                   </div>
-                ))}
-                {group.members > 3 && (
-                   <div className="w-8 h-8 rounded-full border-2 border-white bg-gray-100 flex items-center justify-center text-[10px] font-bold text-gray-500">
-                     +{group.members - 3}
-                   </div>
-                )}
+
+                  <div className="flex items-center gap-2 text-gray-600 text-sm mb-4">
+                    <Users className="w-4 h-4" />
+                    <span>{group.members?.length || 0} members</span>
+                  </div>
+                  
+
+                  <div className="flex items-center gap-2 pt-4 border-t border-gray-50 text-indigo-600 font-medium group-hover:gap-3 transition-all">
+                    <span>View Details</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+
+          {filteredGroups.length === 0 && (
+            <div className="text-center py-12 bg-white rounded-2xl border border-dashed border-gray-200">
+              <div className="mx-auto w-12 h-12 bg-gray-50 rounded-full flex items-center justify-center mb-3">
+                  <Users className="text-gray-400" />
               </div>
+              <p className="text-gray-500 mb-4">No groups found</p>
+              <button
+                onClick={() => setIsModalOpen(true)}
+                className="text-indigo-600 hover:text-indigo-700 font-medium"
+              >
+                Create your first group
+              </button>
             </div>
-          </Link>
-        ))}
-        
-        {/* Empty State if needed */}
-        {filteredGroups.length === 0 && (
-            <div className="col-span-full py-12 text-center text-gray-400">
-                <p>No groups found matching "{searchTerm}"</p>
-            </div>
-        )}
-      </div>
+          )}
+        </>
+      )}
 
-      {/* --- MODERN MODAL --- */}
+      {/* --- CREATE GROUP MODAL --- */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 animate-in fade-in duration-200">
-          <div className="bg-white p-8 rounded-2xl w-full max-w-md shadow-2xl transform transition-all scale-100">
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Create a Group</h2>
-            <p className="text-gray-500 text-sm mb-6">Start tracking expenses with friends.</p>
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-8 animate-in fade-in zoom-in duration-200">
+            <h2 className="text-2xl font-bold text-gray-900 mb-6">Create New Group</h2>
 
-            <div className="space-y-4">
-              <div>
-                <label className="text-sm font-medium text-gray-700 block mb-1">Group Name</label>
+            <div className="mb-6">
+              <label className="text-sm font-medium text-gray-700 mb-2 block">Group Name</label>
+              <input
+                type="text"
+                autoFocus
+                placeholder="e.g., Goa Trip"
+                value={groupName}
+                onChange={(e) => setGroupName(e.target.value)}
+                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500 outline-none transition-all"
+              />
+            </div>
+
+            <div className="mb-6">
+              <label className="text-sm font-medium text-gray-700 mb-2 block">Add Members</label>
+              
+              <div className="relative mb-3">
+                <Search className="absolute left-3 top-3.5 w-4 h-4 text-gray-400" />
                 <input
                   type="text"
-                  autoFocus
-                  value={groupName}
-                  onChange={(e) => setGroupName(e.target.value)}
-                  placeholder="e.g. Goa Trip 2024"
-                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all outline-none"
+                  placeholder="Search users by name or email..."
+                  value={searchUsers}
+                  onChange={(e) => setSearchUsers(e.target.value)}
+                  className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500 outline-none transition-all"
                 />
               </div>
 
-              <div>
-                <label className="text-sm font-medium text-gray-700 block mb-2">Add Members</label>
-                <div className="max-h-48 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
-                  {users.map((user) => {
-                    const isSelected = selectedUsers.includes(user.id);
+              {filteredSearchUsers.length > 0 && (
+                <div className="max-h-40 overflow-y-auto border border-gray-200 rounded-xl p-2 mb-3 bg-gray-50">
+                  {filteredSearchUsers.map((u) => {
+                    const uid = u._id || u.id || ""; 
+                    const isSelected = selectedUsers.includes(uid);
+                    
                     return (
-                        <div 
-                            key={user.id} 
-                            onClick={() => toggleUserSelection(user.id)}
-                            className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer border transition-all ${
-                                isSelected 
-                                ? "bg-indigo-50 border-indigo-200" 
-                                : "bg-white border-gray-100 hover:bg-gray-50"
-                            }`}
+                        <div
+                        key={uid}
+                        onClick={() => toggleUserSelection(uid)}
+                        className={`p-3 cursor-pointer rounded-lg flex items-center gap-3 transition-colors ${
+                            isSelected ? "bg-indigo-100 border-indigo-200" : "hover:bg-white"
+                        }`}
                         >
-                            <div className={`w-5 h-5 rounded-full border flex items-center justify-center ${isSelected ? "bg-indigo-600 border-indigo-600" : "border-gray-300"}`}>
-                                {isSelected && <ArrowRight className="w-3 h-3 text-white" />}
-                            </div>
-                            <span className={`font-medium ${isSelected ? "text-indigo-700" : "text-gray-700"}`}>{user.name}</span>
+                        <div className={`w-5 h-5 rounded-full border flex items-center justify-center ${isSelected ? "bg-indigo-600 border-indigo-600" : "border-gray-300 bg-white"}`}>
+                            {isSelected && <ArrowRight className="w-3 h-3 text-white" />}
+                        </div>
+                        <div>
+                            <p className={`font-medium text-sm ${isSelected ? "text-indigo-900" : "text-gray-900"}`}>{u.name}</p>
+                            <p className="text-xs text-gray-500">{u.email}</p>
+                        </div>
                         </div>
                     );
                   })}
                 </div>
-              </div>
+              )}
+
+              {selectedUsers.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {selectedUsers.map((userId) => {
+                    const user = filteredSearchUsers.find(u => (u._id || u.id) === userId);
+                    const displayName = user?.name || "User"; 
+                    
+                    return (
+                      <span key={userId} className="px-3 py-1 bg-indigo-50 text-indigo-700 rounded-full text-xs font-medium flex items-center gap-2 border border-indigo-100">
+                        {displayName}
+                        <button
+                          onClick={() => toggleUserSelection(userId)}
+                          className="text-indigo-400 hover:text-indigo-600"
+                        >
+                          ✕
+                        </button>
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
-            <div className="flex justify-end gap-3 mt-8">
+            <div className="flex gap-3 pt-2">
               <button
-                onClick={() => setIsModalOpen(false)}
-                className="px-5 py-2.5 text-gray-500 font-medium hover:bg-gray-100 rounded-xl transition-colors"
+                onClick={() => {
+                  setIsModalOpen(false);
+                  setGroupName("");
+                  setSelectedUsers([]);
+                  setSearchUsers("");
+                  setFilteredSearchUsers([]);
+                }}
+                className="flex-1 px-4 py-3 border border-gray-200 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={handleCreateGroup}
                 disabled={!groupName.trim()}
-                className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-all shadow-lg shadow-indigo-200"
+                className="flex-1 px-4 py-3 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 shadow-lg shadow-indigo-200"
               >
-                Create Group
+                {loading ? "Creating..." : (
+                    <>
+                        <Plus className="w-4 h-4" />
+                        Create Group
+                    </>
+                )}
               </button>
             </div>
           </div>

@@ -1,17 +1,30 @@
+import type { User } from "./user.types";
+
 export interface Split {
-  userId: string;
+  user?: User;
+  userId?: string;
   amount: number;
   isPaid: boolean;
 }
 
 export interface Expense {
-  id: string;
+  _id?: string;
+  id?: string;
   productName: string;
-  price: number;
+  price?: number;
+  amount?: number;
   category: string;
-  paidBy: string;
-  groupId: string;
-  date: string;
+  paidBy?: User | { name: string };
+  groupId?: string;
+  date?: string;
   splits: Split[];
   isSettled?: boolean;
+}
+
+export interface ParsedExpense {
+  productName: string;
+  amount: number;
+  category?: string;
+  groupId?: string;
+  paidBy?: string;
 }
