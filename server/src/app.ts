@@ -11,6 +11,8 @@ import expenseRoutes from "./modules/expenses/expense.routes";
 import aiRoutes from "./modules/ai/ai.routes";
 import dashboardRoutes from "./modules/dashboard/dashboard.routes";
 import userRoutes from "./modules/users/user.routes";
+import inviteRoutes from "./modules/invites/invite.route";
+import notificationRoutes from "./modules/notifications/notification.routes";
 
 import { errorHandler } from "./middlewares/errorHandler";
 
@@ -43,5 +45,9 @@ app.use("/api/expenses", expenseRoutes);
 app.use("/api/ai", aiRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/dashboard", dashboardRoutes);
+app.use("/api/users", userRoutes);
+app.use("/api/invites", inviteRoutes);
+app.use("/api/notifications", notificationRoutes);
+
 
 app.use(errorHandler);

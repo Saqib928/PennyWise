@@ -8,6 +8,15 @@ const userSchema = new Schema(
     provider: { type: String, enum: ["google", "password"], default: "password" },
     avatarUrl: String,
     country: { type: String, default: "India" },
+    username: {
+  type: String,
+  unique: true,
+  required: true,
+  lowercase: true,
+  trim: true,
+  index: true,
+}
+
   },
   { timestamps: true }
 );
