@@ -1,13 +1,18 @@
+import { useContext } from "react"; // Import useContext
 import { useNavigate } from "react-router-dom";
 import { Bell, Search, Menu } from "lucide-react";
 import UserProfileMenu from "./UserProfileMenu";
 import { useNotifications } from "../context/NotificationContext";
+import { AuthContext } from "../context/AuthContext"; // Import AuthContext
 
 export default function Navbar() {
   const navigate = useNavigate();
   
   // Get the dynamic count from the Context
   const { unreadCount } = useNotifications(); 
+  
+  // Get the logged-in user from AuthContext
+  const { user } = useContext(AuthContext); 
 
   return (
     // Sticky top, glass effect
@@ -53,7 +58,10 @@ export default function Navbar() {
         {/* User Menu Trigger */}
         <div className="flex items-center gap-3 pl-2 cursor-pointer hover:opacity-80 transition-opacity">
             <div className="text-right hidden md:block">
-                <p className="text-sm font-bold text-gray-900 leading-none">Mohd Saqib</p>
+                {/* Dynamically render user name */}
+                <p className="text-sm font-bold text-gray-900 leading-none">
+                    {user?.name || "Guest User"}
+                </p>
                 <p className="text-xs text-gray-400 mt-1">Free Plan</p>
             </div>
             <UserProfileMenu />

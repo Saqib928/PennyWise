@@ -1,11 +1,9 @@
-import { useState } from "react";
+import { useState, useContext } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Mail, Lock, User, Globe, ArrowRight, Loader2 } from "lucide-react";
-import { useContext } from "react";
+import { Mail, Lock, User, Globe, ArrowRight, Loader2, Eye, EyeOff, AlertCircle } from "lucide-react";
 import { AuthContext } from "../context/AuthContext";
 import { AuthService } from "../services/auth.service";
 
-// You can move this to a constants file later
 const COUNTRIES = [
   "India", "United States", "United Kingdom", "Canada", "Australia", 
   "Germany", "France", "Japan", "Brazil", "China", "South Africa"
@@ -14,8 +12,11 @@ const COUNTRIES = [
 export default function Register() {
   const navigate = useNavigate();
   const { setUser } = useContext(AuthContext);
+  
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [showPassword, setShowPassword] = useState(false); // State for toggling password visibility
+  
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -43,6 +44,8 @@ export default function Register() {
           country: user.country,
         });
         localStorage.setItem("user", JSON.stringify(user));
+        
+        // Redirect to dashboard immediately after success
         navigate("/dashboard");
       }
     } catch (err: any) {
@@ -64,12 +67,6 @@ export default function Register() {
             <h1 className="text-3xl font-bold text-gray-900 mb-2">Create Account</h1>
             <p className="text-gray-500 text-sm">Join to split bills & manage expenses</p>
           </div>
-
-          {error && (
-            <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
-              {error}
-            </div>
-          )}
 
           <form onSubmit={handleRegister} className="space-y-4">
             
@@ -121,33 +118,51 @@ export default function Register() {
                     <option key={country} value={country}>{country}</option>
                   ))}
                 </select>
-                {/* Custom chevron for better UI */}
                 <div className="absolute inset-y-0 right-0 flex items-center px-4 pointer-events-none">
                   <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
                 </div>
               </div>
             </div>
 
-            {/* Password */}
+            {/* Password Section with Error Alert Above */}
             <div className="space-y-1">
+                {/* Red Alert Message moved here */}
+                {error && (
+                    <div className="mb-2 p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm flex items-center gap-2 animate-in slide-in-from-top-1">
+                        <AlertCircle className="w-4 h-4 shrink-0" />
+                        {error}
+                    </div>
+                )}
+
               <label className="text-sm font-medium text-gray-700 ml-1">Password</label>
               <div className="relative">
                 <Lock className="absolute left-3 top-3.5 h-5 w-5 text-gray-400" />
                 <input
-                  type="password"
+                  type={showPassword ? "text" : "password"} // Toggle type
                   placeholder="Create a strong password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all"
+                  className={`w-full pl-10 pr-12 py-3 rounded-xl border outline-none transition-all ${
+                    error ? "border-red-300 focus:ring-red-200" : "border-gray-200 focus:border-indigo-500 focus:ring-indigo-200"
+                  }`}
                   required
                 />
+                
+                {/* Eye Icon Toggle */}
+                <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-3.5 text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
               </div>
             </div>
 
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-400 text-white font-semibold py-3 px-4 rounded-xl transition-all duration-200 flex items-center justify-center gap-2 shadow-lg shadow-indigo-200 mt-4"
+              className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-400 text-white font-semibold py-3 px-4 rounded-xl transition-all duration-200 flex items-center justify-center gap-2 shadow-lg shadow-indigo-200 mt-6"
             >
               {loading ? <Loader2 className="animate-spin w-5 h-5" /> : "Create Account"}
               {!loading && <ArrowRight className="w-5 h-5" />}

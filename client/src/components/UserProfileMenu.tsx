@@ -23,12 +23,11 @@ export default function UserProfileMenu() {
         <div className="absolute right-0 mt-2 w-56 bg-white shadow-xl rounded-lg p-4 z-50">
 
           <p className="font-semibold text-lg">
-            {user.firstName} {user.lastName}
+            {user.name}
           </p>
 
           <p className="text-sm text-gray-600">{user.email}</p>
           <p className="text-sm text-gray-600">{user.country}</p>
-          <p className="text-sm text-gray-600 capitalize">{user.gender}</p>
 
           <button
             onClick={() => {
