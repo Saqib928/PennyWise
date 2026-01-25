@@ -1,6 +1,6 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useState, useEffect, useContext } from "react";
-import { ArrowLeft, Receipt, Users, TrendingUp, Settings, Share2, Plus, Loader2 } from "lucide-react";
+import { ArrowLeft, Receipt, Users, TrendingUp, Settings, Share2, Plus, Loader2, X } from "lucide-react";
 import { AuthContext } from "../context/AuthContext";
 import { GroupService } from "../services/groups.service";
 import { ExpenseService } from "../services/expenses.service"; 
@@ -25,12 +25,16 @@ export default function GroupDetails() {
   const [totalSpending, setTotalSpending] = useState(0);
   const [userBalance, setUserBalance] = useState<{ amount: number; status: 'gets' | 'owes' | 'settled' }>({ amount: 0, status: 'settled' });
 
-  useEffect(() => {
-    if (!id) return;
+  // Add Expense State
+  const [isAddExpenseOpen, setIsAddExpenseOpen] = useState(false);
+  const [newExpenseName, setNewExpenseName] = useState("");
+  const [newExpenseAmount, setNewExpenseAmount] = useState("");
+  const [addExpenseLoading, setAddExpenseLoading] = useState(false);
 
-    const fetchData = async () => {
-      setLoading(true);
-      try {
+  // Helper to refresh data
+  const fetchData = async () => {
+    if (!id) return;
+    try {
         const [groupRes, expensesRes, settlementRes] = await Promise.all([
           GroupService.getOne(id),
           ExpenseService.getByGroup(id), 
@@ -66,29 +70,66 @@ export default function GroupDetails() {
             }
           }
         }
-
-      } catch (err: any) {
+    } catch (err: any) {
         console.error("Failed to load group details", err);
         setError("Could not load group details.");
-      } finally {
+    } finally {
         setLoading(false);
-      }
-    };
+    }
+  };
 
+  // Initial load
+  useEffect(() => {
     fetchData();
   }, [id, user]);
 
   const handleSettleUp = async () => {
     if (!id || !window.confirm("Are you sure you want to settle all your dues in this group?")) return;
-    
     try {
         const res = await GroupService.settleAll(id);
         if (res.data.success) {
             alert("All dues settled!");
-            window.location.reload(); 
+            fetchData();
         }
     } catch (err) {
         alert("Failed to settle dues.");
+    }
+  };
+
+  const handleAddExpense = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newExpenseName || !newExpenseAmount || !group || !id) return;
+
+    setAddExpenseLoading(true);
+    try {
+        const amount = parseFloat(newExpenseAmount);
+        
+        // Default: Split equally among all members
+        const splitAmount = amount / group.members.length;
+        const splits = group.members.map((member: any) => ({
+            userId: member._id || member.id || member,
+            amount: splitAmount
+        }));
+
+        await ExpenseService.create({
+            productName: newExpenseName,
+            price: amount,
+            category: "General",
+            groupId: id,
+            splits: splits
+        });
+
+        // Reset & Refresh
+        setNewExpenseName("");
+        setNewExpenseAmount("");
+        setIsAddExpenseOpen(false);
+        fetchData();
+
+    } catch (err) {
+        console.error("Failed to add expense", err);
+        alert("Failed to add expense.");
+    } finally {
+        setAddExpenseLoading(false);
     }
   };
 
@@ -130,7 +171,6 @@ export default function GroupDetails() {
             <div>
                 <div className="flex items-center gap-3 mb-2">
                     <span className="text-gray-400 text-sm">
-                        {/* FIX 1: Added fallback `|| Date.now()` to ensure valid Date */}
                         Created {new Date(group.createdAt || Date.now()).toLocaleDateString()}
                     </span>
                 </div>
@@ -212,7 +252,6 @@ export default function GroupDetails() {
 
       {/* --- TABS & CONTENT --- */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm min-h-[400px]">
-         {/* Tabs Header */}
          <div className="flex border-b border-gray-100">
             <button 
                 onClick={() => setActiveTab('expenses')}
@@ -230,12 +269,18 @@ export default function GroupDetails() {
             </button>
          </div>
 
-         {/* Tab Content */}
          <div className="p-6">
             {activeTab === 'expenses' ? (
                 <div className="space-y-4">
                     <div className="flex justify-between items-center mb-4">
                         <h3 className="text-lg font-bold text-gray-800">Recent Activity</h3>
+                        <button 
+                            onClick={() => setIsAddExpenseOpen(true)} 
+                            className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors flex items-center gap-2"
+                        >
+                            <Plus className="w-4 h-4" />
+                            Add Expense
+                        </button>
                     </div>
                     
                     {expenses.length > 0 ? (
@@ -248,7 +293,6 @@ export default function GroupDetails() {
                                     <div>
                                         <h4 className="font-bold text-gray-900 group-hover:text-indigo-700 transition-colors">{expense.productName}</h4>
                                         <p className="text-xs text-gray-500">
-                                            {/* FIX 2: Added fallback `|| Date.now()` for expenses too */}
                                             {typeof expense.paidBy === 'object' && expense.paidBy !== null 
                                                 ? (expense.paidBy as any).name 
                                                 : "User"} paid • {new Date(expense.date || Date.now()).toLocaleDateString()}
@@ -263,11 +307,6 @@ export default function GroupDetails() {
                     ) : (
                         <p className="text-center text-gray-500 py-8">No expenses yet. Add one to get started!</p>
                     )}
-                    
-                    <button className="w-full py-3 mt-4 border-2 border-dashed border-gray-200 rounded-xl text-gray-500 font-medium hover:border-indigo-500 hover:text-indigo-600 transition-all flex items-center justify-center gap-2">
-                        <Plus className="w-4 h-4" />
-                        Add Expense
-                    </button>
                 </div>
             ) : (
                 <div className="space-y-4">
@@ -306,6 +345,59 @@ export default function GroupDetails() {
             )}
          </div>
       </div>
+
+      {/* --- ADD EXPENSE MODAL --- */}
+      {isAddExpenseOpen && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 animate-in fade-in zoom-in duration-200">
+                <div className="flex justify-between items-center mb-6">
+                    <h2 className="text-xl font-bold text-gray-900">Add New Expense</h2>
+                    <button onClick={() => setIsAddExpenseOpen(false)} className="text-gray-400 hover:text-gray-600">
+                        <X size={24} />
+                    </button>
+                </div>
+
+                <form onSubmit={handleAddExpense} className="space-y-4">
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Expense Description</label>
+                        <input 
+                            type="text"
+                            placeholder="e.g., Dinner at Taj"
+                            className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none transition-all"
+                            value={newExpenseName}
+                            onChange={(e) => setNewExpenseName(e.target.value)}
+                            required
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Amount (₹)</label>
+                        <input 
+                            type="number"
+                            placeholder="0.00"
+                            className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none transition-all"
+                            value={newExpenseAmount}
+                            onChange={(e) => setNewExpenseAmount(e.target.value)}
+                            required
+                            min="1"
+                        />
+                    </div>
+
+                    <div className="bg-blue-50 p-3 rounded-lg text-blue-800 text-sm">
+                        Info: This will be split equally among all {group.members.length} members.
+                    </div>
+
+                    <button 
+                        type="submit" 
+                        disabled={addExpenseLoading}
+                        className="w-full bg-indigo-600 text-white py-3 rounded-xl font-semibold hover:bg-indigo-700 transition-colors flex justify-center items-center gap-2"
+                    >
+                        {addExpenseLoading ? <Loader2 className="animate-spin w-5 h-5" /> : "Save Expense"}
+                    </button>
+                </form>
+            </div>
+        </div>
+      )}
 
     </div>
   );

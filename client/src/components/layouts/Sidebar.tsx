@@ -1,35 +1,14 @@
-import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Wallet, PieChart, Activity, Users, LogOut } from "lucide-react";
-import { useContext } from "react";
-import { AuthContext } from "../../context/AuthContext";
-import { AuthService } from "../../services/auth.service";
+import { Link, useLocation } from "react-router-dom";
+import { Wallet, PieChart, Activity, Users } from "lucide-react";
 
 export default function Sidebar() {
   const location = useLocation();
-  const navigate = useNavigate();
-  const { setUser } = useContext(AuthContext);
 
   const menu = [
     { name: "Dashboard", path: "/dashboard", icon: <PieChart size={20} /> },
     { name: "Groups", path: "/groups", icon: <Activity size={20} /> },
     { name: "Users", path: "/users", icon: <Users size={20} /> },
-    // Removed Settings
   ];
-
-  const handleLogout = async () => {
-    try {
-      await AuthService.logout(); // Call API: POST /auth/logout
-      setUser(null); // Clear context
-      localStorage.removeItem("user"); // Clear storage
-      navigate("/login"); // Redirect
-    } catch (error) {
-      console.error("Logout failed", error);
-      // Force logout anyway on UI side
-      setUser(null);
-      localStorage.removeItem("user");
-      navigate("/login");
-    }
-  };
 
   return (
     <aside className="hidden lg:flex w-64 bg-white border-r border-gray-100 flex-col shadow-sm z-20 h-screen sticky top-0">
@@ -81,15 +60,6 @@ export default function Sidebar() {
                 Upgrade Now
             </button>
         </div>
-        
-        {/* Logout Button */}
-        <button 
-            onClick={handleLogout}
-            className="w-full mt-4 flex items-center gap-3 px-4 py-3 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all text-sm font-medium"
-        >
-            <LogOut size={18} />
-            <span>Sign Out</span>
-        </button>
       </div>
     </aside>
   );

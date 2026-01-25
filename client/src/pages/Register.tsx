@@ -1,6 +1,6 @@
 import { useState, useContext } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Mail, Lock, User, Globe, ArrowRight, Loader2, Eye, EyeOff, AlertCircle } from "lucide-react";
+import { Mail, Lock, User, Globe, ArrowRight, Loader2, Eye, EyeOff, AlertCircle, AtSign } from "lucide-react"; // Added AtSign icon
 import { AuthContext } from "../context/AuthContext";
 import { AuthService } from "../services/auth.service";
 
@@ -15,9 +15,10 @@ export default function Register() {
   
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [showPassword, setShowPassword] = useState(false); // State for toggling password visibility
+  const [showPassword, setShowPassword] = useState(false);
   
   const [name, setName] = useState("");
+  const [username, setUsername] = useState(""); // 1. Added username state
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [country, setCountry] = useState("");
@@ -30,22 +31,27 @@ export default function Register() {
     try {
       const response = await AuthService.register({
         name,
+        username, // 2. Included in payload
         email,
         password,
         country,
       });
 
-      if (response.data.success && response.data.data) {
-        const user = response.data.data;
-        setUser({
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          country: user.country,
-        });
-        localStorage.setItem("user", JSON.stringify(user));
+      // 3. Updated response check: data.success && data.user
+      if (response.data.user) {
+        const userData = response.data.user; // Changed from data.data to data.user
         
-        // Redirect to dashboard immediately after success
+        const appUser = {
+          id: userData._id,
+          username:userData.username, // Changed from id to _id
+          name: userData.name,
+          email: userData.email,
+          country: userData.country,
+        };
+
+        setUser(appUser);
+        localStorage.setItem("user", JSON.stringify(appUser));
+        
         navigate("/dashboard");
       }
     } catch (err: any) {
@@ -80,6 +86,22 @@ export default function Register() {
                   placeholder="John Doe"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
+                  className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all"
+                  required
+                />
+              </div>
+            </div>
+
+            {/* Username Field - NEW */}
+            <div className="space-y-1">
+              <label className="text-sm font-medium text-gray-700 ml-1">Username</label>
+              <div className="relative">
+                <AtSign className="absolute left-3 top-3.5 h-5 w-5 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="johndoe123"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
                   className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all"
                   required
                 />
@@ -126,7 +148,6 @@ export default function Register() {
 
             {/* Password Section with Error Alert Above */}
             <div className="space-y-1">
-                {/* Red Alert Message moved here */}
                 {error && (
                     <div className="mb-2 p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm flex items-center gap-2 animate-in slide-in-from-top-1">
                         <AlertCircle className="w-4 h-4 shrink-0" />
@@ -138,7 +159,7 @@ export default function Register() {
               <div className="relative">
                 <Lock className="absolute left-3 top-3.5 h-5 w-5 text-gray-400" />
                 <input
-                  type={showPassword ? "text" : "password"} // Toggle type
+                  type={showPassword ? "text" : "password"} 
                   placeholder="Create a strong password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -148,7 +169,6 @@ export default function Register() {
                   required
                 />
                 
-                {/* Eye Icon Toggle */}
                 <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}

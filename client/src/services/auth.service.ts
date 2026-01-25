@@ -7,6 +7,7 @@ export interface LoginRequest {
 
 export interface RegisterRequest {
   name: string;
+  username:string;
   email: string;
   password: string;
   country: string;
@@ -16,6 +17,7 @@ export interface AuthResponse {
 
   user?: {
     _id: string;
+    username:string;
     name: string;
     email: string;
     country: string;

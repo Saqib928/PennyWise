@@ -1,13 +1,14 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Mail, Lock, ArrowRight, Loader2 } from "lucide-react";
-import { useContext } from "react";
-import { AuthContext } from "../context/AuthContext";
+import { Mail, Lock, ArrowRight, Loader2, AlertCircle } from "lucide-react";
+import { useAuth } from "../context/AuthContext";
 import { AuthService } from "../services/auth.service";
+import type { AppUser } from "../types/user.types"; // Ensure correct import path
 
 export default function Login() {
   const navigate = useNavigate();
-  const { setUser } = useContext(AuthContext);
+  const { setUser } = useAuth();
+  
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [email, setEmail] = useState("");
@@ -24,20 +25,36 @@ export default function Login() {
 
     try {
       const response = await AuthService.login({ email, password });
-      if (response.status === 200) {
-        const user = response.data.user;
-        console.log("Logged in user:", user);
-        // setUser({
-        //   id: user?._id,
-        //   name: user?.name,
-        //   email: user?.email,
-        //   country: user?.country,
-        // });
-        localStorage.setItem("user", JSON.stringify(user));
-        navigate("/dashboard");
+      
+      if (response.status === 200 && response.data) {
+        // 1. Get raw user data from API (adjust key if it's data.data)
+        const rawUser = response.data.user || response.data.user;
+        
+        if (rawUser) {
+            console.log("Login success:", rawUser);
+
+            // 2. Map API response (_id) to AppUser type (id)
+            const appUser: AppUser = {
+                id: rawUser._id || rawUser._id,
+                username:rawUser.username, // Handle both cases safely
+                name: rawUser.name,
+                email: rawUser.email,
+                country: rawUser.country,
+            };
+
+            // 3. Update State & Storage
+            setUser(appUser); 
+            localStorage.setItem("user", JSON.stringify(appUser));
+
+            // 4. Navigate
+            navigate("/dashboard", { replace: true }); 
+        } else {
+            throw new Error("Invalid response from server");
+        }
       }
     } catch (err: any) {
-      setError(err.response?.data?.message || "Login failed. Please try again.");
+      console.error("Login error:", err);
+      setError(err.response?.data?.message || "Invalid email or password.");
     } finally {
       setLoading(false);
     }
@@ -46,7 +63,7 @@ export default function Login() {
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4 relative overflow-hidden">
       
-      {/* Background Decor (Blobs) */}
+      {/* Background Decor */}
       <div className="absolute top-0 left-0 w-96 h-96 bg-indigo-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 -translate-x-1/2 -translate-y-1/2 animate-blob"></div>
       <div className="absolute bottom-0 right-0 w-96 h-96 bg-purple-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 translate-x-1/2 translate-y-1/2 animate-blob animation-delay-2000"></div>
 
@@ -58,8 +75,10 @@ export default function Login() {
             <p className="text-gray-500 text-sm">Sign in to track your shared expenses</p>
           </div>
 
+          {/* Error Message */}
           {error && (
-            <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
+            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm flex items-center gap-2 animate-in slide-in-from-top-2">
+              <AlertCircle className="w-4 h-4 shrink-0" />
               {error}
             </div>
           )}
@@ -73,7 +92,7 @@ export default function Login() {
             <img 
               src="https://www.svgrepo.com/show/475656/google-color.svg" 
               alt="Google" 
-              className="w-5 h-5" 
+              className="w-5 h-5 group-hover:scale-110 transition-transform" 
             />
             <span>Continue with Google</span>
           </button>

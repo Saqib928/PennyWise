@@ -1,10 +1,9 @@
-import { useContext } from "react";
 import { Navigate, Outlet, useLocation } from "react-router-dom";
-import { AuthContext } from "../context/AuthContext";
+import { useAuth } from "../context/AuthContext"; // Use hook instead of context directly
 import { Loader2 } from "lucide-react";
 
 export default function ProtectedRoute() {
-  const { user, loading } = useContext(AuthContext);
+  const { user, loading } = useAuth(); // Cleaner syntax
   const location = useLocation();
 
   if (loading) {

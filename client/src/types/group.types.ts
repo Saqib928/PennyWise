@@ -4,7 +4,7 @@ export interface Group {
   _id?: string;
   id?: string;
   name: string;
-  members?: User[];
+  members: User[];
   createdBy?: string;
   createdAt?: string;
 }

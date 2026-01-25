@@ -1,26 +1,20 @@
 import { api } from "./api";
 
-export interface CreateGroupRequest {
-  name: string;
-  memberIds: string[];
-}
-
+// Response interface matching YOUR actual JSON output
 export interface GroupResponse {
-  success: boolean;
-  data?: {
-    _id: string;
-    name: string;
-    members?: Array<any>;
-  };
+  success?: boolean;
+  groups?: any[]; // Added this based on your JSON dump
+  data?: any;
   message?: string;
 }
 
 export const GroupService = {
+  // Returns the raw response so we can handle different structures in the component
   getAll: () => api.get<GroupResponse>("/groups"),
   
   getOne: (id: string) => api.get<GroupResponse>(`/groups/${id}`),
   
-  create: (data: CreateGroupRequest) => 
+  create: (data: { name: string; memberIds: string[] }) => 
     api.post<GroupResponse>("/groups", data),
 
   getSettlement: (groupId: string) =>
