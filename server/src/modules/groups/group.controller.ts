@@ -5,16 +5,32 @@ import mongoose from "mongoose";
 import { verifyGroupAccess } from "../../utils/groupAccess";
 
 export async function createGroup(req: Request, res: Response) {
-  const { name, memberIds } = req.body;
-  const userId = (req as any).user.id;
+  try {
+    const { name, memberIds = [] } = req.body;
+    const userId = (req as any).user.id;
 
-  const group = await Group.create({
-    name,
-    members: [...memberIds, userId],
-    createdBy: userId,
-  });
+    if (!name) {
+      return res.status(400).json({ message: "Group name required" });
+    }
 
-  res.status(201).json({ group });
+    const uniqueMembers = Array.from(
+      new Set([
+        ...memberIds.map((id: string) => id.toString()),
+        userId.toString(),
+      ])
+    );
+
+    const group = await Group.create({
+      name,
+      members: uniqueMembers,
+      createdBy: userId,
+    });
+
+    res.status(201).json({ group });
+
+  } catch (err) {
+    res.status(500).json({ message: "Failed to create group" });
+  }
 }
 
 export async function getGroups(req: Request, res: Response) {
@@ -109,18 +125,30 @@ export async function getGroupSettlement(req: Request, res: Response) {
 
 
 export async function deleteGroup(req: Request, res: Response) {
-  const { id } = req.params;
-  const userId = (req as any).user.id;
+  try {
+    const { id } = req.params;
+    const userId = (req as any).user.id;
 
-  const group = await verifyGroupAccess(id, userId);
-  if (!group) {
-    return res.status(403).json({ message: "Group access denied" });
+    const group = await Group.findById(id);
+    if (!group) {
+      return res.status(404).json({ message: "Group not found" });
+    }
+
+    if (group.createdBy.toString() !== userId.toString()) {
+      return res.status(403).json({ message: "Only group creator can delete this group" });
+    }
+
+    await Group.findByIdAndDelete(id);
+    await Expense.deleteMany({ group: id });
+
+    res.json({
+      success: true,
+      message: "Group and associated expenses deleted successfully",
+    });
+
+  } catch {
+    res.status(500).json({ message: "Failed to delete group" });
   }
-
-  await Group.findByIdAndDelete(id);
-  await Expense.deleteMany({ group: id });
-
-  res.json({ message: "Group and associated expenses deleted successfully" });
-}   
+} 
 
 
