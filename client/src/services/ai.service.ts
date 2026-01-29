@@ -1,18 +1,12 @@
 import { api } from "./api";
 
-export interface ParsedExpense {
-  product: string;
-  amount: number;
-  paid_by: string;
-  group: string;
-  category: string;
-  split_type?: "equal" | "custom";
-}
+export async function voiceExpense(blob: Blob) {
+  const form = new FormData();
+  form.append("audio", blob);
 
-export const AIService = {
-  parseExpense: (text: string) => 
-    api.post<{ data: ParsedExpense }>("/ai/parse-expense", { text }),
-    
-  parseVoiceCommand: (transcript: string) =>
-    api.post<{ data: ParsedExpense }>("/ai/parse-voice", { transcript }),
-};
+  const res = await api.post("/ai/voice-expense", form, {
+    headers: { "Content-Type": "multipart/form-data" }
+  });
+
+  return res.data.data;
+}

@@ -1,9 +1,15 @@
 import { Router } from "express";
-import { parseExpense } from "./ai.controller";
+import { voiceExpensePipeline } from "./ai.controller";
+import { upload } from "../../middlewares/upload.middleware";
 import { requireAuth } from "../../middlewares/auth";
 
 const router = Router();
 
-router.post("/parse-expense", requireAuth, parseExpense);
+router.post(
+  "/voice-expense",
+  requireAuth,
+  upload.single("audio"),
+  voiceExpensePipeline
+);
 
 export default router;
