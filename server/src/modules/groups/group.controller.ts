@@ -3,33 +3,65 @@ import { Group } from "./group.model";
 import { Expense } from "../expenses/expense.model";
 import mongoose from "mongoose";
 import { verifyGroupAccess } from "../../utils/groupAccess";
+import { User } from "../users/user.model";
+import { notify } from "../../utils/notify";
 
 export async function createGroup(req: Request, res: Response) {
   try {
-    const { name, memberIds = [] } = req.body;
+    const { name, inviteUserIds = [] } = req.body;
     const userId = (req as any).user.id;
 
-    if (!name) {
+    if (!name || !name.trim()) {
       return res.status(400).json({ message: "Group name required" });
     }
 
-    const uniqueMembers = Array.from(
-      new Set([
-        ...memberIds.map((id: string) => id.toString()),
-        userId.toString(),
-      ])
-    );
+    const creator = await User.findById(userId);
+    if (!creator) {
+      return res.status(404).json({ message: "Creator not found" });
+    }
 
     const group = await Group.create({
-      name,
-      members: uniqueMembers,
+      name: name.trim(),
+      members: [userId],
       createdBy: userId,
     });
 
-    res.status(201).json({ group });
+    const uniqueInvites = [
+      ...new Set(
+        inviteUserIds
+          .map((id: string) => id.toString())
+          .filter((id: string) => id !== userId.toString())
+      ),
+    ];
+
+    if (uniqueInvites.length > 0) {
+      const invitedUsers = await User.find({
+        _id: { $in: uniqueInvites },
+      }).select("_id name username avatarUrl");
+
+      for (const invitedUser of invitedUsers) {
+        await notify(invitedUser._id.toString(), "GROUP_INVITE", {
+          groupId: group._id,
+          groupName: group.name,
+
+          invitedById: creator._id,
+          invitedByName: creator.name,
+          invitedByUsername: creator.username,
+          invitedByAvatar: creator.avatarUrl || null,
+        });
+      }
+    }
+
+    res.status(201).json({
+      success: true,
+      group,
+    });
 
   } catch (err) {
-    res.status(500).json({ message: "Failed to create group" });
+    res.status(500).json({
+      success: false,
+      message: "Failed to create group",
+    });
   }
 }
 

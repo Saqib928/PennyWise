@@ -1,6 +1,7 @@
-import { createContext, useContext, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { notificationService } from "../services/notification.service";
+import { mapBackendNotification } from "../utils/notificationMapper";
 
-// Define the shape of a notification
 export type NotificationItem = {
   id: string;
   type: "invite" | "expense" | "settle";
@@ -10,37 +11,51 @@ export type NotificationItem = {
   sender: string;
   amount?: number;
   avatarColor: string;
-  isRead: boolean; // Added isRead property
+  isRead: boolean;
 };
 
 interface NotificationContextType {
   notifications: NotificationItem[];
   unreadCount: number;
-  markAllAsRead: () => void;
+  markAllAsRead: () => Promise<void>;
   removeNotification: (id: string) => void;
+  refreshNotifications: () => Promise<void>;
 }
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
 
 export function NotificationProvider({ children }: { children: ReactNode }) {
-  // Mock Initial Data
-  const [notifications, setNotifications] = useState<NotificationItem[]>([
-    {
-      id: "1", type: "invite", title: "Group Invite", message: "invited you to 'Goa Trip'", sender: "Saqib", time: "2m", avatarColor: "bg-blue-500", isRead: false
-    },
-    {
-      id: "2", type: "expense", title: "New Expense", message: "added 'Dinner'", sender: "Aman", amount: 450, time: "1h", avatarColor: "bg-purple-500", isRead: false
-    },
-    {
-      id: "3", type: "settle", title: "Paid", message: "paid you", sender: "Rahul", amount: 100, time: "1d", avatarColor: "bg-green-500", isRead: false
-    }
-  ]);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
 
-  // Calculate unread count automatically
+  useEffect(() => {
+    loadNotifications();
+  }, []);
+
+  async function loadNotifications() {
+    try {
+      const backendData = await notificationService.getAll();
+      setNotifications(backendData.map(mapBackendNotification));
+    } catch (e) {
+      console.error("Failed to load notifications", e);
+    }
+  }
+
   const unreadCount = notifications.filter(n => !n.isRead).length;
 
-  const markAllAsRead = () => {
-    setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+  const markAllAsRead = async () => {
+    try {
+      await Promise.all(
+        notifications
+          .filter(n => !n.isRead)
+          .map(n => notificationService.markRead(n.id))
+      );
+
+      setNotifications(prev =>
+        prev.map(n => ({ ...n, isRead: true }))
+      );
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   const removeNotification = (id: string) => {
@@ -48,15 +63,22 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <NotificationContext.Provider value={{ notifications, unreadCount, markAllAsRead, removeNotification }}>
+    <NotificationContext.Provider
+      value={{
+        notifications,
+        unreadCount,
+        markAllAsRead,
+        removeNotification,
+        refreshNotifications: loadNotifications,
+      }}
+    >
       {children}
     </NotificationContext.Provider>
   );
 }
 
-// Custom Hook for easy access
 export const useNotifications = () => {
   const context = useContext(NotificationContext);
-  if (!context) throw new Error("useNotifications must be used within a NotificationProvider");
+  if (!context) throw new Error("useNotifications must be used inside NotificationProvider");
   return context;
 };

@@ -5,6 +5,7 @@ export interface Group {
   id?: string;
   name: string;
   members: User[];
+  invitedUserIds?: User[];
   createdBy?: string;
   createdAt?: string;
 }

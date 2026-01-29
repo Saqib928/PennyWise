@@ -4,7 +4,6 @@ import type { Group } from "../types/group.types";
 // Flexible interface to match your backend's inconsistent responses
 export interface GroupResponse {
   success: boolean;
-  // The backend might return 'groups' array, 'group' object, or 'data'
   groups?: Group[]; 
   group?: Group;
   data?: Group | Group[]; 
@@ -18,7 +17,7 @@ export const GroupService = {
   // Get single group
   getOne: (id: string) => api.get<GroupResponse>(`/groups/${id}`),
   
-  create: (data: { name: string; memberIds: string[] }) => 
+  create: (data: { name: string; inviteUserIds: string[] }) => 
     api.post<GroupResponse>("/groups", data),
 
   delete: (id: string) => api.delete<{ success: boolean; message?: string }>(`/groups/${id}`),
