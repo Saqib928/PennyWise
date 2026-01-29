@@ -1,8 +1,12 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useState, useEffect, useContext } from "react";
-import { ArrowLeft, Receipt, Users, TrendingUp, Settings, Share2, Plus, Loader2, X, Trash2, Search, UserPlus, ChevronRight, AlertCircle } from "lucide-react";
+import { 
+  ArrowLeft, Receipt, Users, TrendingUp, Settings, Share2, Plus, Loader2, 
+  X, Trash2, Search, UserPlus, ChevronRight, AlertCircle, ChevronDown, 
+  ChevronUp, Calendar, Tag, CreditCard, CheckCircle2, AlertOctagon 
+} from "lucide-react";
 import { AuthContext } from "../context/AuthContext";
-import { GroupService, type GroupResponse } from "../services/groups.service"; // Import the type
+import { GroupService, type GroupResponse } from "../services/groups.service";
 import { ExpenseService } from "../services/expenses.service"; 
 import { UsersService } from "../services/users.service";
 import type { Expense } from "../types/expense.types";
@@ -25,6 +29,9 @@ export default function GroupDetails() {
   const [balances, setBalances] = useState<SettlementBalance[]>([]);
   const [totalSpending, setTotalSpending] = useState(0);
   const [userBalance, setUserBalance] = useState<{ amount: number; status: 'gets' | 'owes' | 'settled' }>({ amount: 0, status: 'settled' });
+
+  // UI State
+  const [expandedExpenseId, setExpandedExpenseId] = useState<string | null>(null);
 
   // Modals State
   const [isAddExpenseOpen, setIsAddExpenseOpen] = useState(false);
@@ -55,11 +62,11 @@ export default function GroupDetails() {
         const resData: GroupResponse = groupRes.data;
         let foundGroup: Group | undefined = undefined;
 
-        // Check 1: 'group' (Singular object) - Most direct match
+        // Check 1: 'group' (Singular object)
         if (resData.group && !Array.isArray(resData.group)) {
             foundGroup = resData.group;
         }
-        // Check 2: 'groups' (Array) - Find by ID or take first
+        // Check 2: 'groups' (Array)
         else if (resData.groups && Array.isArray(resData.groups)) {
             const list = resData.groups as Group[];
             foundGroup = list.find((g) => g._id === id || g.id === id) || list[0];
@@ -92,18 +99,44 @@ export default function GroupDetails() {
           setTotalSpending(total);
         }
 
-        // --- 3. Handle Settlements ---
-        if (settlementRes.data.success || settlementRes.data.data) {
-          const balanceList = Array.isArray(settlementRes.data.data) ? settlementRes.data.data : [];
-          setBalances(balanceList);
-          
-          if (user) {
-            const myBalance = balanceList.find((b: SettlementBalance) => b.userId === user.id || b.userId === user.id);
-            if (myBalance) {
-                setUserBalance({ amount: Math.abs(myBalance.balance), status: myBalance.status });
-            }
-          }
+        // --- 3. Handle Settlements (FIXED) ---
+        const settData = settlementRes.data;
+        let balanceList: SettlementBalance[] = [];
+
+        // Check if settlement data exists in 'settlement' key (as per screenshot)
+        if (settData.settlement && Array.isArray(settData.settlement)) {
+            balanceList = settData.settlement;
+        } 
+        // Fallback: Check 'data' key
+        else if (settData.data && Array.isArray(settData.data)) {
+            balanceList = settData.data;
         }
+        // Fallback: Direct array
+        else if (Array.isArray(settData)) {
+            balanceList = settData;
+        }
+
+        setBalances(balanceList);
+        
+        // Calculate current user's balance
+        if (user) {
+            // Find by ID match (safer) or Name match (fallback)
+            const myBalance = balanceList.find((b: SettlementBalance) => 
+                (b.userId === user.id || b.userId === (user as any)._id) || 
+                (b.email === user.email)
+            );
+
+            if (myBalance) {
+                // Ensure we respect the API's status
+                setUserBalance({ 
+                    amount: Math.abs(myBalance.balance), 
+                    status: myBalance.status as 'gets' | 'owes' 
+                });
+            } else {
+                setUserBalance({ amount: 0, status: 'settled' });
+            }
+        }
+
     } catch (err: any) {
         console.error("Failed to load details", err);
         setError("Could not load group details.");
@@ -116,36 +149,17 @@ export default function GroupDetails() {
     fetchData();
   }, [id, user]);
 
-  // --- SEARCH USERS ---
-  useEffect(() => {
-    if (memberSearchQuery.trim().length < 2) {
-        setMemberSearchResults([]);
-        return;
-    }
-    const timer = setTimeout(async () => {
-        setIsSearchingMembers(true);
-        try {
-            const response = await UsersService.searchUsers(memberSearchQuery);
-            if (response.data.success) {
-                const currentMemberIds = group?.members.map((m: any) => m._id || m.id) || [];
-                const filtered = (response.data.data || []).filter((u: User) => !currentMemberIds.includes(u._id || u.id));
-                setMemberSearchResults(filtered);
-            }
-        } catch (err) {
-            console.error(err);
-        } finally {
-            setIsSearchingMembers(false);
-        }
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [memberSearchQuery, group]);
-
   // --- ACTIONS ---
+  // (Keep all your existing action handlers here: toggleExpenseDetails, handleSettleUp, etc.)
+  const toggleExpenseDetails = (expenseId: string) => {
+    setExpandedExpenseId(expandedExpenseId === expenseId ? null : expenseId);
+  };
+
   const handleSettleUp = async () => {
     if (!id || !window.confirm("Are you sure you want to settle all your dues?")) return;
     try {
         const res = await GroupService.settleAll(id);
-        if (res.data.success) {
+        if (res.data.success || res.status === 200) {
             alert("All dues settled!");
             fetchData();
         }
@@ -207,6 +221,31 @@ export default function GroupDetails() {
         alert("Failed to add member.");
     }
   };
+
+  // --- SEARCH USERS (Keep existing logic) ---
+  useEffect(() => {
+    if (memberSearchQuery.trim().length < 2) {
+        setMemberSearchResults([]);
+        return;
+    }
+    const timer = setTimeout(async () => {
+        setIsSearchingMembers(true);
+        try {
+            const response = await UsersService.searchUsers(memberSearchQuery);
+            if (response.data.success) {
+                const currentMemberIds = group?.members.map((m: any) => m._id || m.id) || [];
+                const filtered = (response.data.data || []).filter((u: User) => !currentMemberIds.includes(u._id || u.id));
+                setMemberSearchResults(filtered);
+            }
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setIsSearchingMembers(false);
+        }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [memberSearchQuery, group]);
+
 
   if (loading) return <div className="flex h-screen items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-indigo-600" /></div>;
   
@@ -310,25 +349,149 @@ export default function GroupDetails() {
                             <Plus className="w-4 h-4" /> Add Expense
                         </button>
                     </div>
-                    {expenses.length > 0 ? expenses.map(ex => (
-                        <div key={ex._id || ex.id} className="flex justify-between p-4 rounded-xl border border-gray-100 hover:bg-gray-50">
-                             <div className="flex items-center gap-4">
-                                <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center text-xl">🧾</div>
-                                <div><h4 className="font-bold text-gray-900">{ex.productName}</h4><p className="text-xs text-gray-500">{new Date(ex.date || Date.now()).toLocaleDateString()}</p></div>
-                             </div>
-                             <p className="font-bold">₹{ex.price}</p>
-                        </div>
-                    )) : <p className="text-gray-500 text-center py-8">No transactions yet.</p>}
+                    {expenses.length > 0 ? expenses.map((ex) => {
+                        const isExpanded = expandedExpenseId === (ex._id || ex.id);
+                        return (
+                            <div key={ex._id || ex.id} className={`rounded-xl border transition-all duration-300 overflow-hidden ${isExpanded ? 'border-indigo-200 bg-indigo-50/30 shadow-md' : 'border-gray-100 hover:bg-gray-50'}`}>
+                                {/* Main Row */}
+                                <div 
+                                    className="flex justify-between p-4 cursor-pointer"
+                                    onClick={() => toggleExpenseDetails(ex._id || ex.id || "")}
+                                >
+                                     <div className="flex items-center gap-4">
+                                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-xl transition-colors ${isExpanded ? 'bg-indigo-100 text-indigo-600' : 'bg-gray-100 text-gray-600'}`}>
+                                            {ex.category === 'Food' ? '🍔' : ex.category === 'Transport' ? '🚕' : '🧾'}
+                                        </div>
+                                        <div>
+                                            <h4 className="font-bold text-gray-900">{ex.productName}</h4>
+                                            <p className="text-xs text-gray-500">
+                                                {typeof ex.paidBy === 'object' && ex.paidBy ? (ex.paidBy as any).name : 'Someone'} paid • {new Date(ex.date || Date.now()).toLocaleDateString()}
+                                            </p>
+                                        </div>
+                                     </div>
+                                     <div className="flex items-center gap-4">
+                                        <p className="font-bold text-gray-900">₹{ex.price}</p>
+                                        {isExpanded ? <ChevronUp className="w-5 h-5 text-indigo-500" /> : <ChevronDown className="w-5 h-5 text-gray-400" />}
+                                     </div>
+                                </div>
+
+                                {/* Expanded Details Panel */}
+                                <div className={`grid transition-all duration-300 ease-in-out ${isExpanded ? 'grid-rows-[1fr] opacity-100 pb-4' : 'grid-rows-[0fr] opacity-0'}`}>
+                                    <div className="overflow-hidden px-4">
+                                        <div className="pt-4 border-t border-indigo-100/50 space-y-4">
+                                            {/* Details Grid */}
+                                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                                <div className="bg-white p-3 rounded-lg border border-gray-100 shadow-sm">
+                                                    <div className="flex items-center gap-2 text-xs text-gray-500 mb-1"><Tag className="w-3 h-3" /> Category</div>
+                                                    <p className="font-medium text-gray-800 text-sm">{ex.category || 'General'}</p>
+                                                </div>
+                                                <div className="bg-white p-3 rounded-lg border border-gray-100 shadow-sm">
+                                                    <div className="flex items-center gap-2 text-xs text-gray-500 mb-1"><Calendar className="w-3 h-3" /> Date</div>
+                                                    <p className="font-medium text-gray-800 text-sm">{new Date(ex.date || Date.now()).toLocaleDateString()}</p>
+                                                </div>
+                                                <div className="bg-white p-3 rounded-lg border border-gray-100 shadow-sm">
+                                                    <div className="flex items-center gap-2 text-xs text-gray-500 mb-1"><CreditCard className="w-3 h-3" /> Paid By</div>
+                                                    <p className="font-medium text-gray-800 text-sm">{typeof ex.paidBy === 'object' && ex.paidBy ? (ex.paidBy as any).name : 'Unknown'}</p>
+                                                </div>
+                                                <div className="bg-white p-3 rounded-lg border border-gray-100 shadow-sm">
+                                                    <div className="flex items-center gap-2 text-xs text-gray-500 mb-1"><Users className="w-3 h-3" /> Split Between</div>
+                                                    <p className="font-medium text-gray-800 text-sm">{ex.splits?.length || 0} People</p>
+                                                </div>
+                                            </div>
+
+                                            {/* Split Breakdown */}
+                                            {ex.splits && ex.splits.length > 0 && (
+                                                <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+                                                    <div className="px-4 py-2 bg-gray-50 border-b border-gray-100 text-xs font-semibold text-gray-500 uppercase tracking-wider">Split Details</div>
+                                                    {ex.splits.map((split: any, idx: number) => (
+                                                        <div key={idx} className="flex justify-between items-center px-4 py-2 text-sm border-b border-gray-50 last:border-0 hover:bg-gray-50/50">
+                                                            <div className="flex items-center gap-2">
+                                                                <div className="w-6 h-6 bg-indigo-100 rounded-full flex items-center justify-center text-xs font-bold text-indigo-600">
+                                                                    {(split.user?.name || 'U').charAt(0)}
+                                                                </div>
+                                                                <span className="text-gray-700">{split.user?.name || 'User'}</span>
+                                                            </div>
+                                                            <span className={split.isPaid ? "text-green-600 font-medium" : "text-gray-500"}>
+                                                                {split.isPaid ? "Paid" : `Owes ₹${split.amount}`}
+                                                            </span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    }) : <p className="text-gray-500 text-center py-8">No transactions yet.</p>}
                 </div>
             ) : (
-                <div className="space-y-4">
-                    <h3 className="text-lg font-bold text-gray-800 mb-4">Settlement Plan</h3>
-                    {balances.length > 0 ? balances.map(b => (
-                        <div key={b.userId} className="flex justify-between p-4 bg-gray-50 rounded-xl">
-                            <div className="flex gap-3 items-center"><div className="w-8 h-8 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center font-bold">{b.name.charAt(0)}</div><span className="font-semibold">{b.name}</span></div>
-                            <span className={`font-bold ${b.status === 'gets' ? 'text-green-600' : 'text-red-600'}`}>{b.status === 'gets' ? '+' : '-'} ₹{Math.abs(b.balance)}</span>
+                // --- MODERN SETTLEMENT CARDS (FIXED DATA) ---
+                <div className="space-y-6">
+                    <div className="flex justify-between items-end">
+                        <h3 className="text-lg font-bold text-gray-900">Settlement Plan</h3>
+                        <p className="text-xs text-gray-500">Balances based on shared expenses</p>
+                    </div>
+
+                    {balances.length > 0 ? (
+                        <div className="grid gap-4 sm:grid-cols-2">
+                            {balances.map((b) => {
+                                const isPositive = b.status === 'gets';
+                                const isSettled = b.balance === 0;
+                                
+                                const cardTheme = isSettled 
+                                    ? "bg-gray-50 border-gray-200" 
+                                    : isPositive 
+                                        ? "bg-emerald-50/50 border-emerald-100 hover:border-emerald-300 hover:shadow-emerald-100/50" 
+                                        : "bg-rose-50/50 border-rose-100 hover:border-rose-300 hover:shadow-rose-100/50";
+
+                                const textTheme = isSettled ? "text-gray-500" : isPositive ? "text-emerald-700" : "text-rose-700";
+                                const badgeTheme = isSettled ? "bg-gray-200 text-gray-600" : isPositive ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700";
+                                const Icon = isSettled ? CheckCircle2 : isPositive ? TrendingUp : AlertOctagon;
+
+                                return (
+                                    <div key={b.userId} className={`relative p-5 rounded-2xl border transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 group ${cardTheme}`}>
+                                        <div className="flex justify-between items-start mb-3">
+                                            <div className="flex items-center gap-3">
+                                                <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm shadow-sm ${isSettled ? 'bg-white text-gray-400' : 'bg-white'}`}>
+                                                    {b.name.charAt(0).toUpperCase()}
+                                                </div>
+                                                <div>
+                                                    <p className="font-bold text-gray-900 leading-tight">{b.name}</p>
+                                                    <p className="text-xs text-gray-500 truncate max-w-[120px]">{b.email}</p>
+                                                </div>
+                                            </div>
+                                            <div className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${badgeTheme}`}>
+                                                {isSettled ? "Settled" : b.status}
+                                            </div>
+                                        </div>
+
+                                        <div className="flex items-end justify-between border-t border-black/5 pt-3 mt-1">
+                                            <p className="text-xs text-gray-500 font-medium">Net Balance</p>
+                                            <div className="text-right">
+                                                <div className={`text-xl font-bold flex items-center justify-end gap-1 ${textTheme}`}>
+                                                    {isPositive ? '+' : isSettled ? '' : '-'} 
+                                                    ₹{Math.abs(b.balance).toLocaleString()}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <Icon className={`absolute bottom-4 left-4 w-12 h-12 opacity-5 pointer-events-none ${textTheme}`} />
+                                    </div>
+                                );
+                            })}
                         </div>
-                    )) : <p className="text-gray-500 text-center py-8">All settled up!</p>}
+                    ) : (
+                        <div className="flex flex-col items-center justify-center py-16 text-center bg-gray-50 rounded-2xl border border-dashed border-gray-200">
+                            <div className="w-16 h-16 bg-white rounded-full shadow-sm flex items-center justify-center mb-4">
+                                <CheckCircle2 className="w-8 h-8 text-green-500" />
+                            </div>
+                            <h3 className="text-lg font-bold text-gray-900">All Settled Up!</h3>
+                            <p className="text-gray-500 text-sm max-w-xs mx-auto mt-2">
+                                No pending balances in this group. Everyone is square.
+                            </p>
+                        </div>
+                    )}
                 </div>
             )}
          </div>
