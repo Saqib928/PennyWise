@@ -5,18 +5,24 @@ import {
   Receipt,
   Bell,
   Clock,
-  CheckCheck
+  CheckCheck,
 } from "lucide-react";
 import { useNotifications } from "../context/NotificationContext";
 import { notificationService } from "../services/notification.service";
+import { useEffect } from "react";
 
 export default function Notifications() {
   const {
     notifications,
     unreadCount,
     markAllAsRead,
-    removeNotification
+    removeNotification,
+    refreshNotifications,
   } = useNotifications();
+
+  useEffect(() => {
+    refreshNotifications();
+  }, []);
 
   const handleAction = async (id: string, action: "accept" | "reject") => {
     try {
@@ -35,25 +41,32 @@ export default function Notifications() {
 
   const getIcon = (type: string) => {
     switch (type) {
-      case "invite": return <UserPlus size={18} className="text-blue-600" />;
-      case "expense": return <Receipt size={18} className="text-purple-600" />;
-      case "settle": return <CheckCheck size={18} className="text-green-600" />;
-      default: return <Bell size={18} className="text-gray-600" />;
+      case "invite":
+        return <UserPlus size={18} className="text-blue-600" />;
+      case "expense":
+        return <Receipt size={18} className="text-purple-600" />;
+      case "settle":
+        return <CheckCheck size={18} className="text-green-600" />;
+      default:
+        return <Bell size={18} className="text-gray-600" />;
     }
   };
 
   const getBgColor = (type: string) => {
     switch (type) {
-      case "invite": return "bg-blue-50";
-      case "expense": return "bg-purple-50";
-      case "settle": return "bg-green-50";
-      default: return "bg-gray-50";
+      case "invite":
+        return "bg-blue-50";
+      case "expense":
+        return "bg-purple-50";
+      case "settle":
+        return "bg-green-50";
+      default:
+        return "bg-gray-50";
     }
   };
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
-
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold flex items-center gap-3">
           Notifications
@@ -81,13 +94,15 @@ export default function Notifications() {
             <p className="text-gray-500 mt-2">No notifications</p>
           </div>
         ) : (
-          notifications.map(n => (
+          notifications.map((n) => (
             <div
               key={n.id}
               className={`p-5 rounded-xl border flex justify-between items-center ${n.isRead ? "opacity-70" : "border-indigo-200"}`}
             >
               <div className="flex gap-4">
-                <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white ${n.avatarColor}`}>
+                <div
+                  className={`w-12 h-12 rounded-full flex items-center justify-center text-white ${n.avatarColor}`}
+                >
                   {n.sender?.[0]}
                 </div>
 

@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { Notification } from "./notification.model";
 import { Group } from "../groups/group.model";
 import { notify } from "../../utils/notify";
+import { User } from "../users/user.model";
 
 
 export async function acceptGroupInvite(req: any, res: any) {
@@ -21,7 +22,13 @@ export async function acceptGroupInvite(req: any, res: any) {
     return res.json({ success: true });
   }
 
-  const { groupId, invitedById } = notification.data;
+  const { groupId, groupName, invitedById } = notification.data;
+
+  const acceptedUser = await User.findById(userId);
+
+  if (!acceptedUser) {
+    return res.status(404).json({ message: "User not found" });
+  }
 
   await Group.findByIdAndUpdate(groupId, {
     $addToSet: { members: userId },
@@ -32,7 +39,12 @@ export async function acceptGroupInvite(req: any, res: any) {
 
   await notify(invitedById, "INVITE_ACCEPTED", {
     groupId,
-    acceptedById: userId,
+    groupName,
+
+    acceptedById: acceptedUser._id,
+    acceptedByName: acceptedUser.name,
+    acceptedByUsername: acceptedUser.username,
+    acceptedByAvatar: acceptedUser.avatarUrl || null,
   });
 
   res.json({ success: true });
