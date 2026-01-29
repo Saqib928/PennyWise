@@ -1,7 +1,7 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useState, useEffect, useContext } from "react";
 import { 
-  ArrowLeft, Receipt, Users, TrendingUp, Settings, Share2, Plus, Loader2, 
+  ArrowLeft, Receipt, Users, TrendingUp, Plus, Loader2, 
   X, Trash2, Search, UserPlus, ChevronRight, AlertCircle, ChevronDown, 
   ChevronUp, Calendar, Tag, CreditCard, CheckCircle2, AlertOctagon 
 } from "lucide-react";
@@ -47,6 +47,7 @@ export default function GroupDetails() {
   const [memberSearchQuery, setMemberSearchQuery] = useState("");
   const [memberSearchResults, setMemberSearchResults] = useState<User[]>([]);
   const [isSearchingMembers, setIsSearchingMembers] = useState(false);
+  const [addingMemberLoading, setAddingMemberLoading] = useState(false);
 
   // --- FETCH DATA ---
   const fetchData = async () => {
@@ -58,21 +59,16 @@ export default function GroupDetails() {
           GroupService.getSettlement(id)
         ]);
 
-        // --- 1. ROBUST GROUP FINDING LOGIC ---
+        // --- 1. GROUP DATA ---
         const resData: GroupResponse = groupRes.data;
         let foundGroup: Group | undefined = undefined;
 
-        // Check 1: 'group' (Singular object)
         if (resData.group && !Array.isArray(resData.group)) {
             foundGroup = resData.group;
-        }
-        // Check 2: 'groups' (Array)
-        else if (resData.groups && Array.isArray(resData.groups)) {
+        } else if (resData.groups && Array.isArray(resData.groups)) {
             const list = resData.groups as Group[];
             foundGroup = list.find((g) => g._id === id || g.id === id) || list[0];
-        }
-        // Check 3: 'data' (Could be Array or Object)
-        else if (resData.data) {
+        } else if (resData.data) {
             if (Array.isArray(resData.data)) {
                 const list = resData.data as Group[];
                 foundGroup = list.find((g) => g._id === id || g.id === id) || list[0];
@@ -88,7 +84,7 @@ export default function GroupDetails() {
             setError("Group details not found.");
         }
 
-        // --- 2. Handle Expenses ---
+        // --- 2. EXPENSES ---
         if (expensesRes.data.success || expensesRes.data.data) {
           const expenseList = Array.isArray(expensesRes.data.data) 
             ? expensesRes.data.data 
@@ -99,41 +95,25 @@ export default function GroupDetails() {
           setTotalSpending(total);
         }
 
-        // --- 3. Handle Settlements (FIXED) ---
+        // --- 3. SETTLEMENTS (FIXED) ---
+        // We now check for 'settlement' key specifically based on your screenshot
         const settData = settlementRes.data;
         let balanceList: SettlementBalance[] = [];
 
-        // Check if settlement data exists in 'settlement' key (as per screenshot)
         if (settData.settlement && Array.isArray(settData.settlement)) {
             balanceList = settData.settlement;
-        } 
-        // Fallback: Check 'data' key
-        else if (settData.data && Array.isArray(settData.data)) {
+        } else if (settData.data && Array.isArray(settData.data)) {
             balanceList = settData.data;
-        }
-        // Fallback: Direct array
-        else if (Array.isArray(settData)) {
+        } else if (Array.isArray(settData)) {
             balanceList = settData;
         }
 
         setBalances(balanceList);
         
-        // Calculate current user's balance
         if (user) {
-            // Find by ID match (safer) or Name match (fallback)
-            const myBalance = balanceList.find((b: SettlementBalance) => 
-                (b.userId === user.id || b.userId === (user as any)._id) || 
-                (b.email === user.email)
-            );
-
+            const myBalance = balanceList.find((b: SettlementBalance) => b.userId === user.id || b.userId === user.id);
             if (myBalance) {
-                // Ensure we respect the API's status
-                setUserBalance({ 
-                    amount: Math.abs(myBalance.balance), 
-                    status: myBalance.status as 'gets' | 'owes' 
-                });
-            } else {
-                setUserBalance({ amount: 0, status: 'settled' });
+                setUserBalance({ amount: Math.abs(myBalance.balance), status: myBalance.status });
             }
         }
 
@@ -150,7 +130,6 @@ export default function GroupDetails() {
   }, [id, user]);
 
   // --- ACTIONS ---
-  // (Keep all your existing action handlers here: toggleExpenseDetails, handleSettleUp, etc.)
   const toggleExpenseDetails = (expenseId: string) => {
     setExpandedExpenseId(expandedExpenseId === expenseId ? null : expenseId);
   };
@@ -206,23 +185,35 @@ export default function GroupDetails() {
         await GroupService.removeMember(id, memberId);
         fetchData();
     } catch (err) {
-        alert("Failed to remove member.");
+        alert("Failed to remove member. (Check if backend supports DELETE /groups/:id/members/:userId)");
     }
   };
 
   const handleAddNewMember = async (newUserId: string) => {
     if(!id) return;
+    setAddingMemberLoading(true);
     try {
         await GroupService.addMember(id, newUserId);
         setIsAddMemberMode(false);
         setMemberSearchQuery("");
-        fetchData();
-    } catch (err) {
-        alert("Failed to add member.");
+        setMemberSearchResults([]);
+        // Refresh to show new member
+        await fetchData(); 
+    } catch (err: any) {
+        console.error(err);
+        const msg = err.response?.data?.message || err.message;
+        const status = err.response?.status;
+        if(status === 404) {
+            alert(`Error: Backend route not found (404). \nEndpoint: POST /groups/${id}/members`);
+        } else {
+            alert(`Failed to add member: ${msg}`);
+        }
+    } finally {
+        setAddingMemberLoading(false);
     }
   };
 
-  // --- SEARCH USERS (Keep existing logic) ---
+  // --- SEARCH USERS (Fixed Filter) ---
   useEffect(() => {
     if (memberSearchQuery.trim().length < 2) {
         setMemberSearchResults([]);
@@ -233,8 +224,14 @@ export default function GroupDetails() {
         try {
             const response = await UsersService.searchUsers(memberSearchQuery);
             if (response.data.success) {
+                // Ensure we handle both _id and id
                 const currentMemberIds = group?.members.map((m: any) => m._id || m.id) || [];
-                const filtered = (response.data.data || []).filter((u: User) => !currentMemberIds.includes(u._id || u.id));
+                
+                const results = response.data.data || [];
+                
+                // Filter users already in group
+                const filtered = results.filter((u: User) => !currentMemberIds.includes(u._id || u.id));
+                
                 setMemberSearchResults(filtered);
             }
         } catch (err) {
@@ -353,11 +350,7 @@ export default function GroupDetails() {
                         const isExpanded = expandedExpenseId === (ex._id || ex.id);
                         return (
                             <div key={ex._id || ex.id} className={`rounded-xl border transition-all duration-300 overflow-hidden ${isExpanded ? 'border-indigo-200 bg-indigo-50/30 shadow-md' : 'border-gray-100 hover:bg-gray-50'}`}>
-                                {/* Main Row */}
-                                <div 
-                                    className="flex justify-between p-4 cursor-pointer"
-                                    onClick={() => toggleExpenseDetails(ex._id || ex.id || "")}
-                                >
+                                <div className="flex justify-between p-4 cursor-pointer" onClick={() => toggleExpenseDetails(ex._id || ex.id || "")}>
                                      <div className="flex items-center gap-4">
                                         <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-xl transition-colors ${isExpanded ? 'bg-indigo-100 text-indigo-600' : 'bg-gray-100 text-gray-600'}`}>
                                             {ex.category === 'Food' ? '🍔' : ex.category === 'Transport' ? '🚕' : '🧾'}
@@ -374,12 +367,9 @@ export default function GroupDetails() {
                                         {isExpanded ? <ChevronUp className="w-5 h-5 text-indigo-500" /> : <ChevronDown className="w-5 h-5 text-gray-400" />}
                                      </div>
                                 </div>
-
-                                {/* Expanded Details Panel */}
                                 <div className={`grid transition-all duration-300 ease-in-out ${isExpanded ? 'grid-rows-[1fr] opacity-100 pb-4' : 'grid-rows-[0fr] opacity-0'}`}>
                                     <div className="overflow-hidden px-4">
                                         <div className="pt-4 border-t border-indigo-100/50 space-y-4">
-                                            {/* Details Grid */}
                                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                                                 <div className="bg-white p-3 rounded-lg border border-gray-100 shadow-sm">
                                                     <div className="flex items-center gap-2 text-xs text-gray-500 mb-1"><Tag className="w-3 h-3" /> Category</div>
@@ -398,22 +388,16 @@ export default function GroupDetails() {
                                                     <p className="font-medium text-gray-800 text-sm">{ex.splits?.length || 0} People</p>
                                                 </div>
                                             </div>
-
-                                            {/* Split Breakdown */}
                                             {ex.splits && ex.splits.length > 0 && (
                                                 <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
                                                     <div className="px-4 py-2 bg-gray-50 border-b border-gray-100 text-xs font-semibold text-gray-500 uppercase tracking-wider">Split Details</div>
                                                     {ex.splits.map((split: any, idx: number) => (
                                                         <div key={idx} className="flex justify-between items-center px-4 py-2 text-sm border-b border-gray-50 last:border-0 hover:bg-gray-50/50">
                                                             <div className="flex items-center gap-2">
-                                                                <div className="w-6 h-6 bg-indigo-100 rounded-full flex items-center justify-center text-xs font-bold text-indigo-600">
-                                                                    {(split.user?.name || 'U').charAt(0)}
-                                                                </div>
+                                                                <div className="w-6 h-6 bg-indigo-100 rounded-full flex items-center justify-center text-xs font-bold text-indigo-600">{(split.user?.name || 'U').charAt(0)}</div>
                                                                 <span className="text-gray-700">{split.user?.name || 'User'}</span>
                                                             </div>
-                                                            <span className={split.isPaid ? "text-green-600 font-medium" : "text-gray-500"}>
-                                                                {split.isPaid ? "Paid" : `Owes ₹${split.amount}`}
-                                                            </span>
+                                                            <span className={split.isPaid ? "text-green-600 font-medium" : "text-gray-500"}>{split.isPaid ? "Paid" : `Owes ₹${split.amount}`}</span>
                                                         </div>
                                                     ))}
                                                 </div>
@@ -426,56 +410,33 @@ export default function GroupDetails() {
                     }) : <p className="text-gray-500 text-center py-8">No transactions yet.</p>}
                 </div>
             ) : (
-                // --- MODERN SETTLEMENT CARDS (FIXED DATA) ---
                 <div className="space-y-6">
                     <div className="flex justify-between items-end">
                         <h3 className="text-lg font-bold text-gray-900">Settlement Plan</h3>
                         <p className="text-xs text-gray-500">Balances based on shared expenses</p>
                     </div>
-
                     {balances.length > 0 ? (
                         <div className="grid gap-4 sm:grid-cols-2">
                             {balances.map((b) => {
                                 const isPositive = b.status === 'gets';
                                 const isSettled = b.balance === 0;
-                                
-                                const cardTheme = isSettled 
-                                    ? "bg-gray-50 border-gray-200" 
-                                    : isPositive 
-                                        ? "bg-emerald-50/50 border-emerald-100 hover:border-emerald-300 hover:shadow-emerald-100/50" 
-                                        : "bg-rose-50/50 border-rose-100 hover:border-rose-300 hover:shadow-rose-100/50";
-
+                                const cardTheme = isSettled ? "bg-gray-50 border-gray-200" : isPositive ? "bg-emerald-50/50 border-emerald-100 hover:border-emerald-300 hover:shadow-emerald-100/50" : "bg-rose-50/50 border-rose-100 hover:border-rose-300 hover:shadow-rose-100/50";
                                 const textTheme = isSettled ? "text-gray-500" : isPositive ? "text-emerald-700" : "text-rose-700";
                                 const badgeTheme = isSettled ? "bg-gray-200 text-gray-600" : isPositive ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700";
                                 const Icon = isSettled ? CheckCircle2 : isPositive ? TrendingUp : AlertOctagon;
-
                                 return (
                                     <div key={b.userId} className={`relative p-5 rounded-2xl border transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 group ${cardTheme}`}>
                                         <div className="flex justify-between items-start mb-3">
                                             <div className="flex items-center gap-3">
-                                                <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm shadow-sm ${isSettled ? 'bg-white text-gray-400' : 'bg-white'}`}>
-                                                    {b.name.charAt(0).toUpperCase()}
-                                                </div>
-                                                <div>
-                                                    <p className="font-bold text-gray-900 leading-tight">{b.name}</p>
-                                                    <p className="text-xs text-gray-500 truncate max-w-[120px]">{b.email}</p>
-                                                </div>
+                                                <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm shadow-sm ${isSettled ? 'bg-white text-gray-400' : 'bg-white'}`}>{b.name.charAt(0).toUpperCase()}</div>
+                                                <div><p className="font-bold text-gray-900 leading-tight">{b.name}</p><p className="text-xs text-gray-500 truncate max-w-[120px]">{b.email}</p></div>
                                             </div>
-                                            <div className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${badgeTheme}`}>
-                                                {isSettled ? "Settled" : b.status}
-                                            </div>
+                                            <div className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${badgeTheme}`}>{isSettled ? "Settled" : b.status}</div>
                                         </div>
-
                                         <div className="flex items-end justify-between border-t border-black/5 pt-3 mt-1">
                                             <p className="text-xs text-gray-500 font-medium">Net Balance</p>
-                                            <div className="text-right">
-                                                <div className={`text-xl font-bold flex items-center justify-end gap-1 ${textTheme}`}>
-                                                    {isPositive ? '+' : isSettled ? '' : '-'} 
-                                                    ₹{Math.abs(b.balance).toLocaleString()}
-                                                </div>
-                                            </div>
+                                            <div className="text-right"><div className={`text-xl font-bold flex items-center justify-end gap-1 ${textTheme}`}>{isPositive ? '+' : isSettled ? '' : '-'} ₹{Math.abs(b.balance).toLocaleString()}</div></div>
                                         </div>
-                                        
                                         <Icon className={`absolute bottom-4 left-4 w-12 h-12 opacity-5 pointer-events-none ${textTheme}`} />
                                     </div>
                                 );
@@ -483,13 +444,9 @@ export default function GroupDetails() {
                         </div>
                     ) : (
                         <div className="flex flex-col items-center justify-center py-16 text-center bg-gray-50 rounded-2xl border border-dashed border-gray-200">
-                            <div className="w-16 h-16 bg-white rounded-full shadow-sm flex items-center justify-center mb-4">
-                                <CheckCircle2 className="w-8 h-8 text-green-500" />
-                            </div>
+                            <div className="w-16 h-16 bg-white rounded-full shadow-sm flex items-center justify-center mb-4"><CheckCircle2 className="w-8 h-8 text-green-500" /></div>
                             <h3 className="text-lg font-bold text-gray-900">All Settled Up!</h3>
-                            <p className="text-gray-500 text-sm max-w-xs mx-auto mt-2">
-                                No pending balances in this group. Everyone is square.
-                            </p>
+                            <p className="text-gray-500 text-sm max-w-xs mx-auto mt-2">No pending balances in this group. Everyone is square.</p>
                         </div>
                     )}
                 </div>
@@ -530,7 +487,7 @@ export default function GroupDetails() {
                         <div className="space-y-4">
                             <div className="relative">
                                 <Search className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
-                                <input type="text" placeholder="Search..." autoFocus className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none" value={memberSearchQuery} onChange={(e) => setMemberSearchQuery(e.target.value)} />
+                                <input type="text" placeholder="Search by name or email..." autoFocus className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none" value={memberSearchQuery} onChange={(e) => setMemberSearchQuery(e.target.value)} />
                             </div>
                             <div className="space-y-2">
                                 {isSearchingMembers ? <div className="text-center py-4"><Loader2 className="w-5 h-5 animate-spin mx-auto text-indigo-500" /></div> : 
@@ -540,9 +497,11 @@ export default function GroupDetails() {
                                             <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center text-xs font-bold text-gray-600">{user.name.charAt(0)}</div>
                                             <div className="text-sm"><p className="font-medium text-gray-900">{user.name}</p><p className="text-xs text-gray-500">{user.email}</p></div>
                                         </div>
-                                        <button onClick={() => handleAddNewMember(user._id || user.id!)} className="px-3 py-1.5 bg-indigo-600 text-white text-xs font-bold rounded-lg hover:bg-indigo-700">Add</button>
+                                        <button disabled={addingMemberLoading} onClick={() => handleAddNewMember(user._id || user.id!)} className="px-3 py-1.5 bg-indigo-600 text-white text-xs font-bold rounded-lg hover:bg-indigo-700 disabled:opacity-50">
+                                            {addingMemberLoading ? "..." : "Add"}
+                                        </button>
                                     </div>
-                                )) : <p className="text-center text-gray-400 text-sm py-4">{memberSearchQuery.length > 1 ? "No users found" : "Type to search users"}</p>}
+                                )) : memberSearchQuery.length > 1 ? <p className="text-center text-gray-400 text-sm py-4">No users found</p> : null}
                             </div>
                         </div>
                     )}

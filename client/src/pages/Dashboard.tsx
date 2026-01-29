@@ -1,5 +1,5 @@
 import { useContext, useState, useEffect } from "react";
-import { TrendingUp, TrendingDown, Wallet, Mic, Plus, ArrowUpRight, ArrowDownLeft } from "lucide-react";
+import { TrendingUp, TrendingDown, Wallet, Mic, ArrowUpRight, ArrowDownLeft } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 
 import { AuthContext } from "../context/AuthContext";
@@ -129,12 +129,6 @@ export default function Dashboard() {
           <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Overview</h1>
           <p className="text-gray-500 mt-1">Welcome back, {user.name} 👋</p>
         </div>
-        
-        {/* Manual Add Button */}
-        <button className="flex items-center gap-2 bg-white border border-gray-200 text-gray-700 px-5 py-2.5 rounded-xl hover:bg-gray-50 transition shadow-sm font-medium active:scale-95">
-          <Plus size={18} />
-          <span>Quick Add</span>
-        </button>
       </div>
 
       {error && (
