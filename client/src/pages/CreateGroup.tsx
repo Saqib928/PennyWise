@@ -77,7 +77,7 @@ export default function CreateGroup() {
         const response = await GroupService.create(payload);
 
         // Robust check: Success flag OR status code 200/201
-        if (response.data.success || response.status === 201 || response.status === 200) {
+        if ( response.status === 201 || response.status === 200) {
             navigate("/groups");
         } else {
             setError("Server processed request but returned unexpected status.");

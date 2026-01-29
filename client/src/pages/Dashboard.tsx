@@ -10,10 +10,11 @@ import { VoiceInput } from "../components/VoiceInput";
 import { ExpenseConfirmationModal } from "../components/ExpenseConfirmationModal";
 import { DashboardService } from "../services/dashboard.service";
 import { GroupService } from "../services/groups.service";
+import { ExpenseService } from "../services/expenses.service"; // Import ExpenseService
 
 import type { Expense, ParsedExpense } from "../types/expense.types";
 
-// Mock Chart Data (You can replace this with real data later)
+// Mock Chart Data
 const chartData = [
   { name: 'Mon', amount: 400 },
   { name: 'Tue', amount: 300 },
@@ -40,46 +41,64 @@ export default function Dashboard() {
 
   // --- Main Data Fetching Effect ---
   useEffect(() => {
-    // 1. Wait for Auth to finish checking
     if (authLoading) return;
 
-    // 2. If no user found, stop loading (will show "Please log in")
     if (!user) {
       setDashLoading(false);
       return;
     }
 
-    // 3. User exists, fetch dashboard data
     const fetchDashboardData = async () => {
       try {
         setDashLoading(true);
         
-        // Fetch Summary Stats
+        // 1. Fetch Summary Stats
         const summaryResponse = await DashboardService.getSummary();
         if (summaryResponse.data.success && summaryResponse.data.data) {
           setBalances(summaryResponse.data.data);
         }
 
-        // Fetch Recent Expenses from Groups
+        // 2. Fetch Groups to find IDs
         const groupsResponse = await GroupService.getAll();
-        if (groupsResponse.data.success && Array.isArray(groupsResponse.data.data)) {
-          const allExpenses: Expense[] = [];
+        
+        // Handle different response structures (groups array vs data array)
+        const groupsList = (groupsResponse.data.groups || []) as any[];
+
+        if (Array.isArray(groupsList) && groupsList.length > 0) {
+          let allExpenses: Expense[] = [];
           
-          // Loop through groups to get expenses (Limit to first 3 groups to save requests)
-          for (const group of groupsResponse.data.data.slice(0, 3)) {
+          // 3. Loop through top 3 groups to get expenses
+          // FIX: Use ExpenseService.getByGroup instead of GroupService.getOne
+          const recentGroups = groupsList.slice(0, 3);
+          
+          for (const group of recentGroups) {
             try {
-              const groupId = group._id || group.id; // Handle both ID formats
-              if(groupId) {
-                  const expensesResponse = await GroupService.getOne(groupId);
-                  if (expensesResponse.data.success && Array.isArray(expensesResponse.data.data)) {
-                    allExpenses.push(...expensesResponse.data.data);
+              const groupId = group._id;
+              if (groupId) {
+                  const expensesRes = await ExpenseService.getByGroup(groupId);
+                  
+                  // Handle potential response structures
+                  const groupExpenses = Array.isArray(expensesRes.data.data) 
+                    ? expensesRes.data.data 
+                    : (expensesRes.data.data as any)?.expenses || [];
+
+                  if (Array.isArray(groupExpenses)) {
+                    allExpenses = [...allExpenses, ...groupExpenses];
                   }
               }
             } catch (err) {
-              console.warn(`Could not load expenses for group`);
+              console.warn(`Could not load expenses for group ${group.name}`);
             }
           }
-          // Sort by date (newest first) and take top 5
+
+          // 4. Sort by date (newest first) and take top 5
+          // Ensure date parsing works correctly
+          allExpenses.sort((a, b) => {
+             const dateA = new Date(a.date || 0).getTime();
+             const dateB = new Date(b.date || 0).getTime();
+             return dateB - dateA;
+          });
+
           setExpenses(allExpenses.slice(0, 5)); 
         }
       } catch (err: any) {
@@ -96,7 +115,6 @@ export default function Dashboard() {
   // --- Handlers ---
   const handleVoiceInput = async (text: string) => {
     console.log("Voice input received:", text);
-    // Simulating AI parsing for now
     setTimeout(() => {
         const mockParsedResult: ParsedExpense = {
             productName: "Simulated " + text.split(' ').slice(0, 2).join(' '),
@@ -112,7 +130,7 @@ export default function Dashboard() {
       _id: Date.now().toString(),
       productName: parsedEx.productName,
       price: parsedEx.amount,
-      date: new Date().toISOString().split('T')[0],
+      date: new Date().toISOString(),
       category: parsedEx.category || 'General',
       splits: []
     };
@@ -122,7 +140,7 @@ export default function Dashboard() {
     setPendingExpense(null);
   };
 
-  // --- Render Loading States ---
+  // --- Render ---
   if (authLoading || (dashLoading && user)) {
       return (
         <div className="flex h-screen items-center justify-center bg-gray-50">
@@ -232,7 +250,7 @@ export default function Dashboard() {
           {expenses.length > 0 ? (
               expenses.map((ex) => <ExpenseCard key={ex._id || ex.id} expense={ex} />)
           ) : (
-              <p className="text-gray-500">No recent transactions.</p>
+              <p className="text-gray-500 text-center py-4">No recent transactions found.</p>
           )}
         </div>
       </div>
