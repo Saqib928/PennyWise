@@ -108,3 +108,19 @@ export async function getGroupSettlement(req: Request, res: Response) {
 }
 
 
+export async function deleteGroup(req: Request, res: Response) {
+  const { id } = req.params;
+  const userId = (req as any).user.id;
+
+  const group = await verifyGroupAccess(id, userId);
+  if (!group) {
+    return res.status(403).json({ message: "Group access denied" });
+  }
+
+  await Group.findByIdAndDelete(id);
+  await Expense.deleteMany({ group: id });
+
+  res.json({ message: "Group and associated expenses deleted successfully" });
+}   
+
+

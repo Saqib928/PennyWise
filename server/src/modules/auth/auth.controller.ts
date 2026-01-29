@@ -4,16 +4,65 @@ import { hashPassword, comparePassword } from "../../utils/hash";
 import { signToken } from "../../utils/jwt";
 
 export async function register(req: Request, res: Response) {
-  const { name, email, password, country } = req.body;
-  const existing = await User.findOne({ email });
-  if (existing) return res.status(400).json({ message: "Email already registered" });
+  try {
+    let { name, email, password, country, username } = req.body;
 
-  const passwordHash = await hashPassword(password);
-  const user = await User.create({ name, email, passwordHash, country });
+    email = email?.toLowerCase().trim();
+    username = username?.toLowerCase().trim();
 
-  const token = signToken({ id: user._id, email });
-  res.cookie("token", token, { httpOnly: true, sameSite: "lax" });
-  res.json({ user });
+    if (!email || !password || !username) {
+      return res.status(400).json({ message: "Missing required fields" });
+    }
+
+    const [emailExists, usernameExists] = await Promise.all([
+      User.findOne({ email }),
+      User.findOne({ username }),
+    ]);
+
+    if (emailExists) {
+      return res.status(400).json({ message: "Email already registered" });
+    }
+
+    if (usernameExists) {
+      return res.status(400).json({ message: "Username already taken" });
+    }
+
+    const passwordHash = await hashPassword(password);
+
+    const user = await User.create({
+      name,
+      email,
+      passwordHash,
+      country,
+      username,
+    });
+
+    const token = signToken({
+      id: user._id,
+      email: user.email,
+    });
+
+    res.cookie("token", token, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+    });
+
+    res.json({ user });
+
+  } catch (err: any) {
+
+    if (err.code === 11000) {
+      if (err.keyPattern?.email) {
+        return res.status(400).json({ message: "Email already registered" });
+      }
+      if (err.keyPattern?.username) {
+        return res.status(400).json({ message: "Username already taken" });
+      }
+    }
+
+    res.status(500).json({ message: "Registration failed" });
+  }
 }
 
 export async function login(req: Request, res: Response) {

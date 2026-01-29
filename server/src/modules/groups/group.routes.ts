@@ -6,6 +6,7 @@ import {
   getGroupById,
   getGroupSettlement,
     settleGroup,
+  deleteGroup
 } from "./group.controller";
 
 const router = Router();
@@ -17,5 +18,6 @@ router.post("/:id/settle", requireAuth, settleGroup);
 
 // NEW
 router.get("/:id/settlement", requireAuth, getGroupSettlement);
+router.delete("/:id", requireAuth, deleteGroup); 
 
 export default router;
